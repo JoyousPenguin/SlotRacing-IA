@@ -10,6 +10,8 @@
 #include <iomanip>
 #include<fstream>
 
+#include "SerialPort.h"
+
 
 //vector fo point used to straighten up the image
 std::vector<cv::Point> pointVec;
@@ -1093,42 +1095,109 @@ int main()
     std::string wind_Vid = "Stream";
     cv::namedWindow(wind_Vid, cv::WINDOW_AUTOSIZE);
 
+
+    const char* portName = "\\\\.\\COM9";
+    const char* sendString = "A";
+    int DATA_LENGTH = 1;
+
+    SerialPort* bridge = new SerialPort(portName);
+    bridge->isConnected();
+    /*if (!)
+    {
+        std::cout << "Can't connect to arduino" << std::endl;
+        cv::waitKey(0);
+    }*/
+
     state = true;
+    std::cout << "STARRRTTTTT" << std::endl;
+    char prevData='A';
+    char data=0x64;
     while (state)
     {
+        std::cout << "TOUR" << std::endl;
         video_stream.release();
         stream.release();
 
         state = cap.read(video_stream);
-        TransformView(video_stream, stream, M, cadre, mask);        
-
-        
-
+        TransformView(video_stream, stream, M, cadre, mask);
 
         //car 1 = IA
         cv::bitwise_and(stream, stream, TrackCar1, carPath);
         car1 = BackgroundSubstraction(BackSubTrackCar1, TrackCar1);
+        cv::Point p;
         for (int i = 0; i < car1.size(); i++)
         {
             cv::Rect2d r = boundingRect(car1[i]);
             rectangle(stream, r, cv::Scalar(0, 255, 0), 2);
+            p = cv::Point(r.x + r.width / 2, r.y + r.height / 2);
+            cv::circle(stream, p, 2, cv::Scalar(0, 0, 255));
         }
 
+        
+        cv::Mat black = cv::Mat::zeros(stream.size(), CV_8U);
+        cv::Mat Result;
+        cv::bitwise_and(black, black, Result, StraightSection);
+        if (cv::countNonZero(Result) == 0)
+        {
+            cv::bitwise_and(black, black, Result, TurnSection);
+            if (cv::countNonZero(Result) == 0)
+            {
+                cv::bitwise_and(black, black, Result, TightTurnSection);
+                if (cv::countNonZero(Result) == 0)
+                {
+                    //val = -1;
+                    //data = 0x32;//50
+                    continue;
+                }
+                else
+                {
+                    data = 0x46; //70
+                    std::cout << "TOURNE FORT" << std::endl;
+                }
+            }
+            else
+            {
+                data = 0x50; //80
+                std::cout << "TOURNE" << std::endl;
+            }
 
+        }
+        else
+        {
+            data = 0x64; //100
+            std::cout << "DROIT" << std::endl;
+        }
+
+        if (data != prevData || prevData=='A')
+        {
+            bridge->writeSerialPort(&data, 1);
+
+            std::cout << "value sended: " << std::hex << data << std::endl;
+            prevData = data;
+        }
+        
         //car 2 = other car
-        cv::bitwise_not(carPath, maskTrackCar2);
+        /*cv::bitwise_not(carPath, maskTrackCar2);
         cv::bitwise_and(stream, stream, TrackCar2, maskTrackCar2);
         car2 = BackgroundSubstraction(BackSubTrackCar2, TrackCar2);
         for (int i = 0; i < car2.size(); i++)
         {
             cv::Rect2d r = boundingRect(car2[i]);
             rectangle(stream, r, cv::Scalar(0, 0, 255), 2);
-        }
+        }*/
+
+
+
+
+
+
+
+
+
 
         cv::imshow(wind_Vid, stream);
-
         cv::imshow("car1 IA", TrackCar1);
-        cv::imshow("car2 Player", TrackCar2);
+        //cv::imshow("car2 Player", TrackCar2);
 
         cv::waitKey(1);
 
