@@ -560,7 +560,7 @@ std::vector<std::vector<cv::Point>> BackgroundSubstraction(cv::Ptr<cv::Backgroun
 }
 
 
-cv::Mat getPath(cv::Mat img, std::vector<cv::Point> points)
+std::vector<cv::Point2f> getPath(std::vector<cv::Point> points, cv::Mat& drawing_path)
 {
 
     std::cout << points.size()<<"points before processing | ";
@@ -668,7 +668,7 @@ cv::Mat getPath(cv::Mat img, std::vector<cv::Point> points)
 
 
     //Draw the points of the track
-    cv::Mat drawing_path(img.size(), CV_8UC1, cv::Scalar(0,0,0));
+    //cv::Mat drawing_path(img.size(), CV_8UC1, cv::Scalar(0,0,0));
 
     std::cout << "ordered_point_path.size() = " << ordered_point_path.size() << " --- filtered_ordered_point_path.size() = "<< filtered_ordered_point_path.size() << std::endl;
 
@@ -695,7 +695,7 @@ cv::Mat getPath(cv::Mat img, std::vector<cv::Point> points)
         line(drawing_path, filtered_ordered_point_path[prev], filtered_ordered_point_path[i], cv::Scalar(255), 1, cv::LINE_8);
         
     }
-    return drawing_path;
+    return filtered_ordered_point_path;
 }
 
 
@@ -828,7 +828,7 @@ int main()
 
     //****************************Select ROI for sections*************************************
 
-    /*
+    
     
     
     //SELECT STRAIGHT SECTIONS-------------------
@@ -897,7 +897,7 @@ int main()
     cv::destroyWindow(TurnWind); 
 
 
-    */
+    
 
 
 
@@ -963,17 +963,107 @@ int main()
 
     
 
-    cv::Mat path = getPath(stream, point_path);
-    video_stream.release();
-    stream.release();
+    cv::Mat path(stream.size(), CV_8UC1, cv::Scalar(0, 0, 0));
+    std::vector<cv::Point2f> trackPath = getPath(point_path, path);
 
     cv::Mat temp, carPath;
 
     cv::dilate(path, temp, cv::Mat(), cv::Point(-1, -1), 20);
     cv::erode(temp, carPath, cv::Mat(), cv::Point(-1, -1), 13);
 
+    //****************************From path and Section get order******************************************
 
-    //****************************TEST******************************************
+
+    std::vector<std::pair<int, int>> Track;
+    /*
+    * vector de X Y
+    *   x = sections
+    *       1 - straight
+    *       2 - turn
+    *       3 - tight turn
+    * 
+    *   y = lenght of section
+    *       = nbre of point in section / nbre of point tot
+    * 
+    */
+
+    int count=0;
+    int val = 0;
+    int prevVal = 0;
+
+    for (int i = 0; i < trackPath.size(); i++)
+    {
+        cv::Mat Black = cv::Mat::zeros(stream.size(), CV_8U);
+
+        cv::circle(Black, trackPath[i], 1, cv::Scalar(255));
+
+        cv::Mat result;
+        val = 0;
+
+
+        cv::bitwise_and(Black, Black, result, StraightSection);
+        if (cv::countNonZero(result) == 0)
+        {
+            cv::bitwise_and(Black, Black, result, TurnSection);
+            if (cv::countNonZero(result) == 0)
+            {
+                cv::bitwise_and(Black, Black, result, TightTurnSection);
+                if (cv::countNonZero(result) == 0)
+                {
+                    val = -1;
+                }
+                else
+                {
+                    val = 3;
+                }
+            }
+            else
+            {
+                val = 2;
+            }
+
+        }
+        else
+        {
+            val = 1;
+        }
+
+
+        if (val == prevVal || i == 0)
+        {
+            count++;
+            prevVal = val;
+        }
+        else if (val == -1)
+        {
+            std::cout << "Error in track" << std::endl;
+        }
+        else
+        {
+            std::pair<int, int> answer;
+            answer.first = prevVal;
+            answer.second = count;
+
+            Track.push_back(answer);
+
+            count = 0;
+            prevVal = val;
+        }
+    }
+    
+    for (int i = 0; i < Track.size(); i++)
+    {
+        std::cout << " Section: " << Track[i].first << " of size: " << Track[i].second << std::endl;
+    }
+
+
+
+
+
+
+
+    //****************************Get car separatly******************************************
+
     //initialize background substraction
     cv::Ptr<cv::BackgroundSubtractor> BackSubTrackCar1 = initBackSub();
     cv::Ptr<cv::BackgroundSubtractor> BackSubTrackCar2 = initBackSub();
@@ -1024,6 +1114,7 @@ int main()
             rectangle(stream, r, cv::Scalar(0, 255, 0), 2);
         }
 
+
         //car 2 = other car
         cv::bitwise_not(carPath, maskTrackCar2);
         cv::bitwise_and(stream, stream, TrackCar2, maskTrackCar2);
@@ -1045,38 +1136,7 @@ int main()
             state = false;
 
     }
-
-
-
-
-
-
-
-
-
-    //****************************Control*************************************
-    /*state = true;
-    while (state)
-    {
-
-        //get image ----------------- 
-        image.release();
-        state = cap.read(image);
-
-        cv::Mat stream;
-
-        TransformView(image, stream, M, cadre, mask);
-
-        //detect car
-
-
-
-
-
-
-
-
-    }*/
+   
 
 
 
