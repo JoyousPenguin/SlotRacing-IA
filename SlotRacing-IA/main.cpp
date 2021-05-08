@@ -496,13 +496,15 @@ void GetTransformViewParam(cv::Mat& image, cv::Mat& M, cv::Rect2d& finalRect, cv
 
 void TransformView(cv::Mat& image, cv::Mat& output, cv::Mat& M, cv::Rect2d& r, cv::Mat& mask)
 {
-    cv::Mat flat;
+    cv::Mat flat, bitAndImg, bitAndMask;
     cv::warpPerspective(image, flat, M, image.size());
 
     cv::Mat im(flat);
     cv::Mat resized = im(r);
 
-    bitwise_and(resized, resized, output, mask);
+    bitwise_and(resized, resized, bitAndImg, mask);
+
+    cv::resize(bitAndImg, output, cv::Size(), 2, 2, cv::INTER_LINEAR);
 
     flat.release();
     resized.release();
@@ -1011,8 +1013,8 @@ int main()
     {
         state=cap.read(image);
 
-        TransformView(image, video_stream, M, cadre, mask);
-        cv::resize(video_stream, stream, cv::Size(), 2, 2, cv::INTER_LINEAR);
+        TransformView(image, stream, M, cadre, mask);
+        //cv::resize(video_stream, stream, cv::Size(), 2, 2, cv::INTER_LINEAR);
         cv::imshow(wind_stream, stream);
 
         if (cv::waitKey(20) == ' ')
@@ -1022,11 +1024,78 @@ int main()
     cv::destroyWindow(wind_stream);
     video_stream.release();
 
+    //****************************Select ROI for sections*************************************
+
+    
+    
+    
+
+    image.release();
+    cap.read(image);
+
+
+    std::string wind_roi;
+    cv::namedWindow(wind_roi, cv::WINDOW_AUTOSIZE);
+    bool fromCenter = false;
+    cv::Mat selected;
+
+    TransformView(image, selected, M, cadre, mask);
+
+    std::vector<cv::Rect2d> straight;
+
+    bool end = false;
+
+    int nbre;
+    std::cout << "Enter the number of straight sections of the track : ";
+    std::cin >> nbre;
+
+
+    std::cout << "Select all straight sections" << std::endl;
+
+    while(straight.size()<nbre)
+    {
+        char car = cv::waitKey(10);
+
+        cv::Rect2d r = cv::selectROI(wind_roi, selected, fromCenter);
+        
+        cv::rectangle(selected, r, cv::Scalar(0,255,0), 2);
+
+        straight.push_back(r);
+    }
+
+    cv::Mat TempStraightSection = cv::Mat::zeros(selected.size(), CV_8U);
+    cv::Mat StraightSection = cv::Mat::zeros(selected.size(), CV_8U);
+
+    for (int i = 0; i < straight.size(); i++)
+    {
+        cv::rectangle(TempStraightSection, straight[i], cv::Scalar(255), -1);
+    }
+
+    cv::destroyWindow(wind_roi);
+
+    cv::Mat trackMask;
+    cv::resize(mask, trackMask, cv::Size(), 2.0, 2.0);
+
+    cv::bitwise_and(TempStraightSection, trackMask, StraightSection, cv::Mat());
+
+    std::string StraightWind = "Straight sections";
+    cv::namedWindow(StraightWind, cv::WINDOW_AUTOSIZE);
+    imshow(StraightWind, StraightSection);
+
+
+
+
+
+
+
+
+
+
 
     //****************************Detection of the path*************************************
 
     //initialize background substraction
-    cv::Ptr<cv::BackgroundSubtractor> BackSub = initBackSub();
+    /*cv::Ptr<cv::BackgroundSubtractor> BackSub = initBackSub();
     std::vector<std::vector<cv::Point>> mvt;
 
     std::vector<cv::Point> point_path;
@@ -1041,8 +1110,8 @@ int main()
     
 
     state = cap.read(image);
-    TransformView(image, video_stream, M, cadre, mask);
-    cv::resize(video_stream, stream, cv::Size(), 2, 2, cv::INTER_LINEAR);
+    TransformView(image, stream, M, cadre, mask);
+    //cv::resize(video_stream, stream, cv::Size(), 2, 2, cv::INTER_LINEAR);
     mvt = BackgroundSubstraction(BackSub, stream);
 
     while (state)
@@ -1051,9 +1120,9 @@ int main()
 
         state=cap.read(image);
 
-        TransformView(image, video_stream, M, cadre, mask);
+        TransformView(image, stream, M, cadre, mask);
 
-        cv::resize(video_stream, stream, cv::Size(), 2,2, cv::INTER_LINEAR);
+        //cv::resize(video_stream, stream, cv::Size(), 2,2, cv::INTER_LINEAR);
 
         mvt = BackgroundSubstraction(BackSub, stream);
 
@@ -1084,7 +1153,7 @@ int main()
         
     }
 
-    getPath(point_path);
+    getPath(point_path);*/
 
 
     //****************************Quit*************************************
