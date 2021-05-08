@@ -36,8 +36,10 @@ void mouseClick(int event, int x, int y, int, void*)
 }
 
 
-void GetClickPoint(cv::Mat image)
+void GetClickPoint(cv::VideoCapture cap)
 {
+    cv::Mat image;
+    cap.read(image);
     bool mano = false;
     std::fstream Flux("data.txt", std::ios::in);
     std::vector<cv::Point> points_value;
@@ -71,8 +73,6 @@ void GetClickPoint(cv::Mat image)
                     i = 0;
                 }
                 getline(Flux, ligne);
-
-
             }
             cv::Mat img = image;
             for (int i = 0; i < points_value.size(); i++)
@@ -117,6 +117,9 @@ void GetClickPoint(cv::Mat image)
 
     if (mano)
     {
+
+        image.release();
+        cap.read(image);
         std::string mouseSelector = "mouse window";
         cv::namedWindow(mouseSelector);
         cv::setMouseCallback(mouseSelector, mouseClick, 0);
@@ -985,7 +988,7 @@ int main()
     //****************************Starting process to isolate track*************************************
 
     //get the points to straighten up th eimage
-    GetClickPoint(image);
+    GetClickPoint(cap);
 
     cv::Mat M, mask;
     cv::Rect2d cadre;
