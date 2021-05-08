@@ -560,7 +560,7 @@ std::vector<std::vector<cv::Point>> BackgroundSubstraction(cv::Ptr<cv::Backgroun
 }
 
 
-void getPath(std::vector<cv::Point> points)
+cv::Mat getPath(cv::Mat img, std::vector<cv::Point> points)
 {
 
     std::cout << points.size()<<"points before processing | ";
@@ -668,7 +668,7 @@ void getPath(std::vector<cv::Point> points)
 
 
     //Draw the points of the track
-    cv::Mat drawing_path(cv::Size(400, 500), CV_8UC1, cv::Scalar(0));
+    cv::Mat drawing_path(img.size(), CV_8UC1, cv::Scalar(0,0,0));
 
     std::cout << "ordered_point_path.size() = " << ordered_point_path.size() << " --- filtered_ordered_point_path.size() = "<< filtered_ordered_point_path.size() << std::endl;
 
@@ -683,265 +683,19 @@ void getPath(std::vector<cv::Point> points)
         std::cout << "Points " << i << " -- ( " << ordered_point_path[i].x << " ; " << ordered_point_path[i].y << " ) ";
         std::cout << " -- FILTERED = ( " << filtered_ordered_point_path[i].y << " ; " << filtered_ordered_point_path[i].y << " )" << std::endl;
 
-        cv::circle(drawing_path, ordered_point_path[prev], 1, cv::Scalar(125), 1, cv::LINE_8);
+        /*cv::circle(drawing_path, ordered_point_path[prev], 1, cv::Scalar(125), 1, cv::LINE_8);
         cv::circle(drawing_path, ordered_point_path[i], 1, cv::Scalar(125), 1, cv::LINE_8);
 
-        line(drawing_path, ordered_point_path[prev], ordered_point_path[i], cv::Scalar(125), 1, cv::LINE_8);
+        line(drawing_path, ordered_point_path[prev], ordered_point_path[i], cv::Scalar(125), 1, cv::LINE_8);*/
 
 
         cv::circle(drawing_path, filtered_ordered_point_path[prev], 1, cv::Scalar(255), 1, cv::LINE_8);
         cv::circle(drawing_path, filtered_ordered_point_path[i], 1, cv::Scalar(255), 1, cv::LINE_8);
 
         line(drawing_path, filtered_ordered_point_path[prev], filtered_ordered_point_path[i], cv::Scalar(255), 1, cv::LINE_8);
-
-        cv::imshow("demo", drawing_path);
-    }
-
-
-
-    
-    
-
-
-
-
-
-
-
-
-    //computing Slope of point of the track
-    //if slope is infinite --> replaced by previous value
-    std::vector<double> slope_path_point;
-    std::vector<cv::Point> StraightLine;
-
-    int shift_point = 5;
-    int shift_pixel = 3;
-    for (int i = 0; i < filtered_ordered_point_path.size(); i++)
-    {
-        double pos, neg;
-
-        if ((i + shift_point) > filtered_ordered_point_path.size() - 1)
-            pos = (i + shift_point) - filtered_ordered_point_path.size();
-
-        else
-            pos = i + shift_point;
-
-        if ((i - shift_point) < 0)
-            neg = filtered_ordered_point_path.size() + (i - shift_point);
-        else
-            neg = i - shift_point;
-
-
-
-        double DeltaX = filtered_ordered_point_path[pos].x - filtered_ordered_point_path[neg].x;
-        double Deltay = filtered_ordered_point_path[pos].y - filtered_ordered_point_path[neg].y;
-
-
-        if (DeltaX < shift_pixel || Deltay < shift_pixel)
-        {
-            StraightLine.push_back(filtered_ordered_point_path[i]);
-        }
-        else 
-        {
-            StraightLine.push_back(cv::Point(-1, -1));
-        }
-
-        double slope = abs(Deltay / DeltaX);
-
-        slope_path_point.push_back(slope);
-    }
-
-    cv::Mat drawing_straight_path(cv::Size(400, 500), CV_8UC1, cv::Scalar(0));
-    for (int i = 0; i < StraightLine.size(); i++)
-    {
-        if (StraightLine[i] != cv::Point(-1, -1))
-        {
-            cv::circle(drawing_straight_path, StraightLine[i], 1, cv::Scalar(255), 1, cv::LINE_8);
-        }
-    }
-
-
-    cv::imshow("Line -Delta", drawing_straight_path);
-
-    cv::waitKey(0);
-
-    //apply a LINEAR FILTER TO THE VALUES OF SLOPES
-    /*std::vector<double> filtered_slope_path_point;
-
-   
-
-    for (int i = 0; i < slope_path_point.size(); i++)
-    {
-        //std::cout << "i = " << i << std::endl;
-
-        int prev = i - 1;
-        if (prev < 0)
-            prev = slope_path_point.size() - 1;
-
-        int fut = i + 1;
-        if (fut > slope_path_point.size() - 1)
-            fut = 0;
-
-        //std::cout << " -- prev = " << prev << " -- fut = " << fut << std::endl;
-
-        if (slope_path_point[prev] == slope_path_point[fut] == slope_path_point[i]) //case X X X
-        {
-            //std::cout << "COUCOU 1" << std::endl;
-            filtered_slope_path_point.push_back(slope_path_point[i]);
-        }
-        else
-        {
-            //std::cout << "COUCOU 2" << std::endl;
-            if (slope_path_point[prev] != slope_path_point[i] && slope_path_point[fut] != slope_path_point[i] && slope_path_point[prev] == slope_path_point[fut]) //case X Y X 
-            {
-                //std::cout << "COUCOU 2.1" << std::endl;
-                filtered_slope_path_point.push_back(slope_path_point[prev]);
-            }
-            else if(slope_path_point[prev] != slope_path_point[i] && slope_path_point[i]==slope_path_point[fut]) // case Y X X 
-            {
-                filtered_slope_path_point.push_back(slope_path_point[i]);
-
-            }
-            else if (slope_path_point[prev] == slope_path_point[i] && slope_path_point[i] != slope_path_point[fut]) //case X X Y
-            {
-                filtered_slope_path_point.push_back(slope_path_point[i]);
-
-            }
-            else if (slope_path_point[prev] != slope_path_point[i] != slope_path_point[fut]) // case X Y Z
-            {
-                //std::cout << "COUCOU 2.2" << std::endl;
-
-                int prev2 = i - 2;
-                if (prev2 < 0)
-                    prev2 = slope_path_point.size() + prev2;
-
-                int fut2 = i + 2;
-                if (fut2 > slope_path_point.size() - 1)
-                    fut2 = fut2 - slope_path_point.size();
-
-                //std::cout <<" -- prev2 = " <<prev2<<" -- fut2 = "<<fut2<< std::endl;
-
-                if (slope_path_point[prev2] == slope_path_point[prev] && slope_path_point[fut] == slope_path_point[fut2]) //case X X Y Z Z
-                {
-                    //std::cout << "COUCOU 2.2.1" << std::endl;
-                    filtered_slope_path_point.push_back(slope_path_point[prev]);
-                }
-                else
-                {
-                    //std::cout << "COUCOU 2.2.2" << std::endl;
-                    filtered_slope_path_point.push_back(slope_path_point[i]);
-                }
-            }
-            else //case X X Y
-            {
-                filtered_slope_path_point.push_back(slope_path_point[i]);
-            }
-        }
-        std::cout << slope_path_point[i] << " ---- " << filtered_slope_path_point[i] << std::endl;
-    }*/
-
-
-
-
-    //check where in the track the slope is +/- constant
         
-    //std::vector<std::vector<int>> straightLine;
-    std::vector<int> temp;
-
-    double offsetVal = 0.2;
-    /*for (int i = 0; i < filtered_slope_path_point.size(); i++)
-    {
-        bool stop = false;
-        int Idx = 0;
-
-        while (!stop)
-        {
-            int NextIdx = i + Idx;
-
-
-            if (NextIdx > filtered_slope_path_point.size() - 1)
-            {
-                NextIdx = NextIdx - (filtered_slope_path_point.size());
-            }              
-
-                
-
-            if (filtered_slope_path_point[NextIdx] == filtered_slope_path_point[i] && (filtered_slope_path_point[i]==3 || filtered_slope_path_point[i] == 0.1))
-                temp.push_back(NextIdx);
-            else
-                stop = true;
-
-            Idx++;
-
-            if (Idx == filtered_slope_path_point.size() - 2)
-                break;
-
-        }
-        //std::cout << "COUCOU - "<<i << std::endl;
-        straightLine.push_back(temp);
-        temp.clear();
-    }*/
-   
-    int next = 1;
-    for (int i = 0; i < filtered_ordered_point_path.size(); i++)
-    {
-        int pos, neg;
-
-        if ((i + next) > filtered_ordered_point_path.size() - 1)
-            pos = (i + next) - filtered_ordered_point_path.size();
-        else
-            pos = i + next;
-
-
-        if ((i - next) < 0)
-            neg = filtered_ordered_point_path.size() + (i - next);
-        else
-            neg = i - next;
-
-
-
-        if (slope_path_point[i] < (1 + offsetVal) * slope_path_point[neg] && slope_path_point[i] > (1 - offsetVal) * slope_path_point[neg] &&
-            slope_path_point[i] < (1 + offsetVal) * slope_path_point[pos] && slope_path_point[i] > (1 - offsetVal) * slope_path_point[pos])
-        {
-            if (StraightLine[i] != cv::Point(-1, -1))
-            {
-                StraightLine[i] = filtered_ordered_point_path[i];
-            }
-        }
-
     }
-
-    
-
-
-    /*for (int i = 0; i < straightLine.size(); i++)
-    {
-        if (straightLine[i].size() > 2)
-        {
-            for (int j = 1; j < straightLine[i].size(); j++)
-            {
-                cv::circle(drawing_straight_path, filtered_ordered_point_path[straightLine[i][j - 1]], 1, cv::Scalar(255), 1, cv::LINE_8);
-                cv::circle(drawing_straight_path, filtered_ordered_point_path[straightLine[i][j]], 1, cv::Scalar(255), 1, cv::LINE_8);
-
-
-                cv::line(drawing_straight_path, filtered_ordered_point_path[straightLine[i][j - 1]], filtered_ordered_point_path[straightLine[i][j]], cv::Scalar(255), 1, cv::LINE_8);
-            }
-        }
-    }*/
-
-    for (int i = 0; i < StraightLine.size(); i++)
-    {
-        if (StraightLine[i] != cv::Point(-1, -1))
-        {
-            cv::circle(drawing_straight_path, StraightLine[i], 1, cv::Scalar(255), 1, cv::LINE_8);
-        }
-    }
-
-
-    cv::imshow("Line", drawing_straight_path);
-    
-
-
+    return drawing_path;
 }
 
 
@@ -1074,7 +828,7 @@ int main()
 
     //****************************Select ROI for sections*************************************
 
-    
+    /*
     
     
     //SELECT STRAIGHT SECTIONS-------------------
@@ -1134,13 +888,16 @@ int main()
     cv::namedWindow(TurnWind, cv::WINDOW_AUTOSIZE);
     imshow(TurnWind, TurnSection);
 
-    cv::waitKey(1);
+
+    std::cout << "Press any Key to continue" << std::endl;
+    cv::waitKey(0);
+
+    cv::destroyWindow(StraightWind);
+    cv::destroyWindow(TightTurntWind);
+    cv::destroyWindow(TurnWind); 
 
 
-
-
-
-
+    */
 
 
 
@@ -1195,8 +952,7 @@ int main()
         }
         
         imshow(wind, stream);
-        video_stream.release();
-        stream.release();
+        
 
         if (cv::waitKey(20) == ' ')//press ESPACE
         {
@@ -1205,7 +961,124 @@ int main()
         
     }
 
-    getPath(point_path);
+    
+
+    cv::Mat path = getPath(stream, point_path);
+    video_stream.release();
+    stream.release();
+
+    cv::Mat temp, carPath;
+
+    cv::dilate(path, temp, cv::Mat(), cv::Point(-1, -1), 20);
+    cv::erode(temp, carPath, cv::Mat(), cv::Point(-1, -1), 13);
+
+
+    //****************************TEST******************************************
+    //initialize background substraction
+    cv::Ptr<cv::BackgroundSubtractor> BackSubTrackCar1 = initBackSub();
+    cv::Ptr<cv::BackgroundSubtractor> BackSubTrackCar2 = initBackSub();
+    std::vector<std::vector<cv::Point>> car1;
+    std::vector<std::vector<cv::Point>> car2;
+
+    video_stream.release();
+    stream.release();
+
+    cap.read(video_stream);
+    TransformView(video_stream, stream, M, cadre, mask);
+
+
+    cv::Mat TrackCar1, TrackCar2, TrackMask, maskTrackCar2;
+    cv::resize(mask, TrackMask, cv::Size(), 2.0, 2.0);
+
+
+    //car1 == IA
+    cv::bitwise_and(stream, stream, TrackCar1, carPath);
+    car1 = BackgroundSubstraction(BackSubTrackCar1, TrackCar1);
+
+    //car2 == player
+    cv::bitwise_not(carPath, maskTrackCar2);
+    cv::bitwise_and(stream, stream, TrackCar2, maskTrackCar2);
+    car2 = BackgroundSubstraction(BackSubTrackCar2, TrackCar2);
+
+    std::string wind_Vid = "Stream";
+    cv::namedWindow(wind_Vid, cv::WINDOW_AUTOSIZE);
+
+    state = true;
+    while (state)
+    {
+        video_stream.release();
+        stream.release();
+
+        state = cap.read(video_stream);
+        TransformView(video_stream, stream, M, cadre, mask);        
+
+        
+
+
+        //car 1 = IA
+        cv::bitwise_and(stream, stream, TrackCar1, carPath);
+        car1 = BackgroundSubstraction(BackSubTrackCar1, TrackCar1);
+        for (int i = 0; i < car1.size(); i++)
+        {
+            cv::Rect2d r = boundingRect(car1[i]);
+            rectangle(stream, r, cv::Scalar(0, 255, 0), 2);
+        }
+
+        //car 2 = other car
+        cv::bitwise_not(carPath, maskTrackCar2);
+        cv::bitwise_and(stream, stream, TrackCar2, maskTrackCar2);
+        car2 = BackgroundSubstraction(BackSubTrackCar2, TrackCar2);
+        for (int i = 0; i < car2.size(); i++)
+        {
+            cv::Rect2d r = boundingRect(car2[i]);
+            rectangle(stream, r, cv::Scalar(0, 0, 255), 2);
+        }
+
+        cv::imshow(wind_Vid, stream);
+
+        cv::imshow("car1 IA", TrackCar1);
+        cv::imshow("car2 Player", TrackCar2);
+
+        cv::waitKey(1);
+
+        if (cv::waitKey(10) == 27)
+            state = false;
+
+    }
+
+
+
+
+
+
+
+
+
+    //****************************Control*************************************
+    /*state = true;
+    while (state)
+    {
+
+        //get image ----------------- 
+        image.release();
+        state = cap.read(image);
+
+        cv::Mat stream;
+
+        TransformView(image, stream, M, cadre, mask);
+
+        //detect car
+
+
+
+
+
+
+
+
+    }*/
+
+
 
 
     //****************************Quit*************************************
