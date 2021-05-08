@@ -576,6 +576,7 @@ void getPath(std::vector<cv::Point> points)
             }
         }
     }
+
     std::cout << points.size() << " points after processing" << std::endl;
 
 
@@ -944,6 +945,53 @@ void getPath(std::vector<cv::Point> points)
 }
 
 
+cv::Mat selection(cv::Mat image, cv::Mat mask,  int nbre)
+{
+
+    std::vector<cv::Rect2d> vec;
+
+    cv::Mat trackMask;
+    cv::resize(mask, trackMask, cv::Size(), 2.0, 2.0);
+
+    std::string wind_roi = "Select sections";
+    cv::namedWindow(wind_roi, cv::WINDOW_AUTOSIZE);
+
+
+    bool fromCenter = false;
+
+
+    while (vec.size() < nbre)
+    {
+        char car = cv::waitKey(10);
+
+        cv::Rect2d r = cv::selectROI(wind_roi, image, fromCenter);
+
+        cv::rectangle(image, r, cv::Scalar(0, 255, 0), 2);
+
+        vec.push_back(r);
+    }
+
+
+    cv::Mat TempSection = cv::Mat::zeros(image.size(), CV_8U);
+    cv::Mat Section = cv::Mat::zeros(image.size(), CV_8U);
+
+    for (int i = 0; i < vec.size(); i++)
+    {
+        cv::rectangle(TempSection, vec[i], cv::Scalar(255), -1);
+    }
+
+    cv::destroyWindow(wind_roi);
+
+    cv::bitwise_and(TempSection, trackMask, Section, cv::Mat());
+
+    image.release();
+    TempSection.release();
+
+    return Section;
+    Section.release();
+}
+
+
 int main()
 {
 	std::cout << "Program Start" << std::endl;
@@ -1029,60 +1077,64 @@ int main()
     
     
     
-
+    //SELECT STRAIGHT SECTIONS-------------------
     image.release();
-    cap.read(image);
+    cap.read(image);   
 
-
-    std::string wind_roi;
-    cv::namedWindow(wind_roi, cv::WINDOW_AUTOSIZE);
-    bool fromCenter = false;
     cv::Mat selected;
-
     TransformView(image, selected, M, cadre, mask);
-
-    std::vector<cv::Rect2d> straight;
-
-    bool end = false;
 
     int nbre;
     std::cout << "Enter the number of straight sections of the track : ";
     std::cin >> nbre;
 
+    cv::Mat StraightSection = selection(selected, mask, nbre);
 
-    std::cout << "Select all straight sections" << std::endl;
+    selected.release();
 
-    while(straight.size()<nbre)
-    {
-        char car = cv::waitKey(10);
+    //SELECT TIGHT TURN SECTIONS-------------------
+    image.release();
+    cap.read(image);
 
-        cv::Rect2d r = cv::selectROI(wind_roi, selected, fromCenter);
-        
-        cv::rectangle(selected, r, cv::Scalar(0,255,0), 2);
+    TransformView(image, selected, M, cadre, mask);
 
-        straight.push_back(r);
-    }
+    nbre = 0;
+    std::cout << "Enter the number of tight turn sections of the track : ";
+    std::cin >> nbre;
 
-    cv::Mat TempStraightSection = cv::Mat::zeros(selected.size(), CV_8U);
-    cv::Mat StraightSection = cv::Mat::zeros(selected.size(), CV_8U);
+    cv::Mat TightTurnSection = selection(selected, mask, nbre);
 
-    for (int i = 0; i < straight.size(); i++)
-    {
-        cv::rectangle(TempStraightSection, straight[i], cv::Scalar(255), -1);
-    }
+    selected.release();
 
-    cv::destroyWindow(wind_roi);
+    //SELECT TURN SECTIONS-------------------
+    image.release();
+    cap.read(image);
 
-    cv::Mat trackMask;
-    cv::resize(mask, trackMask, cv::Size(), 2.0, 2.0);
+    TransformView(image, selected, M, cadre, mask);
 
-    cv::bitwise_and(TempStraightSection, trackMask, StraightSection, cv::Mat());
+    nbre = 0;
+    std::cout << "Enter the number of turn sections of the track : ";
+    std::cin >> nbre;
+
+    cv::Mat TurnSection = selection(selected, mask, nbre);
+
+    selected.release();
+
+    //DRAW ALL SECTIONS------------------------
 
     std::string StraightWind = "Straight sections";
     cv::namedWindow(StraightWind, cv::WINDOW_AUTOSIZE);
     imshow(StraightWind, StraightSection);
 
+    std::string TightTurntWind = "Tight turn sections";
+    cv::namedWindow(TightTurntWind, cv::WINDOW_AUTOSIZE);
+    imshow(TightTurntWind, TightTurnSection);
 
+    std::string TurnWind = "Turn sections";
+    cv::namedWindow(TurnWind, cv::WINDOW_AUTOSIZE);
+    imshow(TurnWind, TurnSection);
+
+    cv::waitKey(1);
 
 
 
@@ -1095,7 +1147,7 @@ int main()
     //****************************Detection of the path*************************************
 
     //initialize background substraction
-    /*cv::Ptr<cv::BackgroundSubtractor> BackSub = initBackSub();
+    cv::Ptr<cv::BackgroundSubtractor> BackSub = initBackSub();
     std::vector<std::vector<cv::Point>> mvt;
 
     std::vector<cv::Point> point_path;
@@ -1153,7 +1205,7 @@ int main()
         
     }
 
-    getPath(point_path);*/
+    getPath(point_path);
 
 
     //****************************Quit*************************************
