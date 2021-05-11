@@ -120,6 +120,8 @@ int main()
     //****************************Get car separatly******************************************
 
     Pilot Hamilton(cap, M, cadre, mask);
+    Hamilton.train(StraightSections, TurnSections, TightTurnSections);
+
     Hamilton.drive(carPath);
    
 
