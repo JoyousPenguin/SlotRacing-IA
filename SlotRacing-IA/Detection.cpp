@@ -53,3 +53,26 @@ std::vector<std::vector<cv::Point>> Detection::BackgroundSubstraction(cv::Mat& s
 
     return Edges;
 };
+
+
+void Detection::GetView(cv::Mat& input, cv::Mat& output, cv::Mat& M, cv::Rect2d& r, cv::Mat& mask)
+{
+    cv::Mat flat, bitAndImg;
+
+
+    cv::warpPerspective(input, flat, M, input.size());
+
+    cv::Mat im(flat);
+    cv::Mat resized = im(r);
+
+    bitwise_and(resized, resized, bitAndImg, mask);
+
+    cv::resize(bitAndImg, output, cv::Size(), 2, 2, cv::INTER_LINEAR);
+
+    resized.release();
+
+
+    flat.release();
+    bitAndImg.release();
+
+};

@@ -32,10 +32,10 @@ private:
 	cv::Mat t_M;
 	cv::Rect2d t_cadre;
 	cv::Mat t_mask;
-
+/*
 protected:
 
-	void GetView(cv::Mat& input, cv::Mat& output, cv::Mat& M, cv::Rect2d& r, cv::Mat& mask);
+	void GetView(cv::Mat& input, cv::Mat& output, cv::Mat& M, cv::Rect2d& r, cv::Mat& mask);*/
 	
 
 public:

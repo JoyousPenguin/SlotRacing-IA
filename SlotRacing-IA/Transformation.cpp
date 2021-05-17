@@ -535,7 +535,7 @@ bool Transformation::GetView(cv::Mat& output)
     return state;
 };
 
-
+/*
 void Transformation::GetView(cv::Mat& input, cv::Mat& output, cv::Mat& M, cv::Rect2d& r, cv::Mat& mask)
 {
     cv::Mat flat, bitAndImg;
@@ -556,7 +556,7 @@ void Transformation::GetView(cv::Mat& input, cv::Mat& output, cv::Mat& M, cv::Re
     flat.release();
     bitAndImg.release();
 
-};
+};*/
 
 
 void Transformation::GetTransformParam(cv::Mat& M, cv::Rect2d& r, cv::Mat& mask)

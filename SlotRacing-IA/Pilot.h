@@ -6,7 +6,7 @@
 
 
 class Pilot:
-	Detection, Transformation
+	Detection
 {
 private:
 	cv::Mat p_M;
@@ -26,7 +26,16 @@ private:
 	std::vector<cv::Rect2d> TightTurnRect;
 	std::vector<int> TightTurnVecX;
 	std::vector<int> TightTurnVecY;
+
+	cv::Mat StraightSections, TurnSections, TightTurnSections;
 	
+	std::vector<cv::Point2f> filtered_ordered_point_path;
+
+	//contains a mask of the path of the track
+	cv::Mat CarPath;
+
+	//list of section with size
+	std::vector<std::pair<int, int>> Track;
 
 	SerialPort* bridge;
 
@@ -36,13 +45,30 @@ private:
 	bool CheckPath(cv::Point p, std::vector<int>SectionVecX, std::vector<int>SectionVecY);
 
 
+	void selection(cv::Mat& image, cv::Mat& output, int nbre);
+
+
+	void getPath(std::vector<cv::Point> points, cv::Mat& drawing_path);
+
 public:
 	Pilot(cv::VideoCapture cap, cv::Mat M, cv::Rect2d r, cv::Mat mask);
 
+
 	~Pilot();
 
-	void train(cv::Mat& StraightSections, cv::Mat& TurnSections, cv::Mat& TightTurnSections);
 
-	void drive(cv::Mat carPath);
+	void SectionsSelecter(cv::Mat& image);
+
+
+	void SavePath();
+
+
+	void DecomposePath(cv::Size p);
+
+
+	void train();
+
+
+	void drive();
 };
 

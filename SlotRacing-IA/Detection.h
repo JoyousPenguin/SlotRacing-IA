@@ -17,6 +17,8 @@ protected:
 
 	std::vector<std::vector<cv::Point>> BackgroundSubstraction(cv::Mat& stream, double learningRate);
 
+	void GetView(cv::Mat& input, cv::Mat& output, cv::Mat& M, cv::Rect2d& r, cv::Mat& mask);
+
 public:
 	Detection();
 

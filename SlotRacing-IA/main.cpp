@@ -11,7 +11,6 @@
 
 
 #include "Transformation.h"
-#include "TrackConfig.h"
 #include "Pilot.h"
 
 
@@ -70,11 +69,11 @@ int main()
     //****************************Starting process to isolate track*************************************
 
 
-    Transformation adobe(cap);
-    adobe.Process();
-    adobe.GetTransformParam(M, cadre, mask);
+    Transformation Transfo(cap);
+    Transfo.Process();
+    Transfo.GetTransformParam(M, cadre, mask);
 
-    //****************************Showing Result of transforation*************************************
+    //****************************Showing Result of transformation*************************************
 
     std::cout << "Press SPACE to continue" << std::endl;
         
@@ -82,7 +81,7 @@ int main()
     cv::namedWindow(wind_stream, cv::WINDOW_AUTOSIZE);
 
     cv::Mat stream;
-    while(adobe.GetView(stream))
+    while(Transfo.GetView(stream))
     {
         cv::imshow(wind_stream, stream);
 
@@ -95,127 +94,30 @@ int main()
     //****************************Select ROI for sections*************************************    
     
 
-    TrackConfig PaulRicard (cap, M, cadre, mask);
+    Pilot Hamilton(cap, M, cadre, mask);
 
-    cv::Mat StraightSections, TurnSections, TightTurnSections;
-    adobe.GetView(stream);
-
-    PaulRicard.SectionsSelecter(stream, StraightSections, TurnSections, TightTurnSections);
+    Transfo.GetView(stream);
+    Hamilton.SectionsSelecter(stream);
 
 
 
-    //****************************Detection of the path*************************************
-
-    cv::Mat carPath;
-    PaulRicard.SavePath(carPath);
-
+    //****************************Detection of the path by vector of points*************************************
+        
+    Hamilton.SavePath();
 
     //****************************From path and Section get order******************************************
 
 
-    std::vector<std::pair<int, int>> Track;
-    PaulRicard.DecomposePath(stream.size(), Track);
+   
+    Hamilton.DecomposePath(stream.size());
     stream.release();
 
     //****************************Get car separatly******************************************
 
-    Pilot Hamilton(cap, M, cadre, mask);
-    Hamilton.train(StraightSections, TurnSections, TightTurnSections);
+    
+    Hamilton.train();
 
-    Hamilton.drive(carPath);
-   
-
-    /*while (state)
-    {
-
-
-
-
-        std::cout << "TOUR" << std::endl;
-        video_stream.release();
-        stream.release();
-
-        state = cap.read(video_stream);
-        TransformView(video_stream, stream, M, cadre, mask);
-
-        //car 1 = IA
-        cv::bitwise_and(stream, stream, TrackCar1, carPath);
-        car1 = BackgroundSubstraction(BackSubTrackCar1, TrackCar1);
-
-
-
-
-
-        cv::Point p;
-        for (int i = 0; i < car1.size(); i++)
-        {
-            cv::Rect2d r = boundingRect(car1[i]);
-            rectangle(stream, r, cv::Scalar(0, 255, 0), 2);
-            p = cv::Point(r.x + r.width / 2, r.y + r.height / 2);
-            cv::circle(stream, p, 2, cv::Scalar(0, 0, 255));
-        }
-
-        
-        cv::Mat black = cv::Mat::zeros(stream.size(), CV_8U);
-        cv::Mat Result;
-        cv::bitwise_and(black, black, Result, StraightSection);
-        if (cv::countNonZero(Result) == 0)
-        {
-            cv::bitwise_and(black, black, Result, TurnSection);
-            if (cv::countNonZero(Result) == 0)
-            {
-                cv::bitwise_and(black, black, Result, TightTurnSection);
-                if (cv::countNonZero(Result) == 0)
-                {
-                    //val = -1;
-                    //data = 0x32;//50
-                    continue;
-                }
-                else
-                {
-                    data = 0x46; //70
-                    std::cout << "TOURNE FORT" << std::endl;
-                }
-            }
-            else
-            {
-                data = 0x50; //80
-                std::cout << "TOURNE" << std::endl;
-            }
-
-        }
-        else
-        {
-            data = 0x64; //100
-            std::cout << "DROIT" << std::endl;
-        }
-
-        if (data != prevData || prevData == 'A')
-        {
-            bridge->writeSerialPort(&data, 1);
-
-            std::cout << "value sended: " << std::hex << data << std::endl;
-            prevData = data;
-        }
-
-
-
-
-
-
-
-
-
-
-        cv::imshow(wind_Vid, stream);
-        cv::imshow("car1 IA", TrackCar1);
-
-        cv::waitKey(1);
-
-        if (cv::waitKey(10) == 27)
-            state = false;
-
-    }*/
+    Hamilton.drive();
    
     //****************************Quit*************************************
 
@@ -225,6 +127,7 @@ int main()
 
     M.release();
     mask.release();
+    cap.release();
 
     cv::destroyAllWindows();
 
