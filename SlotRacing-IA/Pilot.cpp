@@ -8,6 +8,7 @@ Pilot::Pilot(cv::VideoCapture cap, cv::Mat M, cv::Rect2d r, cv::Mat mask)
 
     this->p_cap = cap;
 
+    //connect to Arduino
     const char* portName = "\\\\.\\COM9";
     bridge = new SerialPort(portName);
 
@@ -137,7 +138,7 @@ void Pilot::SectionsSelecter(cv::Mat& image)
     cv::namedWindow(wind_roi, cv::WINDOW_AUTOSIZE);
 
     Startgrid= cv::selectROI(wind_roi, frame, false);
-
+    std::cout << "Startgrid position to (" << Startgrid.x << ";" << Startgrid.y << ") with dim " << Startgrid.width << " x " << Startgrid.height << std::endl;
     cv::destroyWindow(wind_roi);
     frame.release();
 
@@ -305,12 +306,52 @@ void Pilot::getPath(std::vector<cv::Point> points, cv::Mat& drawing_path)
         cv::circle(drawing_path, filtered_ordered_point_path[i], 1, cv::Scalar(255), 1, cv::LINE_8);
 
         line(drawing_path, filtered_ordered_point_path[prev], filtered_ordered_point_path[i], cv::Scalar(255), 1, cv::LINE_8);
+        cv::imshow("Path", drawing_path);
+        cv::waitKey(0);
 
     }
 
-    cv::imshow("Path", drawing_path);
-    cv::waitKey(0);
+    
+    //cv::waitKey(0);
     cv::destroyWindow("Path");
+
+
+
+
+    //check for the correct rotation
+
+
+    cv::Point p;
+    p.x = Startgrid.x + Startgrid.width / 2;
+    p.y = Startgrid.y + Startgrid.height / 2;
+
+    double shortestDist = 999999;
+    shortestDistIdx = -1;
+
+    for (int i = 0; i < filtered_ordered_point_path.size(); i++)
+    {
+        
+        double dist = sqrt(pow(p.x - filtered_ordered_point_path[i].x, 2) + pow(p.y - filtered_ordered_point_path[i].y, 2));
+
+        if (dist < shortestDist)
+        {
+            shortestDistIdx = i;
+            shortestDist = dist;
+        }
+    }
+    std::cout<<std::endl;
+
+    if (filtered_ordered_point_path[shortestDistIdx].x < filtered_ordered_point_path[shortestDistIdx+3].x)
+    {
+        std::cout << "Error encoding points -- reversing order" << std::endl;
+
+        for (int i = 0; i < filtered_ordered_point_path.size() / 2; i++)
+        {
+            cv::Point p = filtered_ordered_point_path[i];
+            filtered_ordered_point_path[i] = filtered_ordered_point_path[filtered_ordered_point_path.size()-1 - i];
+            filtered_ordered_point_path[filtered_ordered_point_path.size()-1 - i] = p;
+        }
+    }
 }
 
 
@@ -359,9 +400,6 @@ void Pilot::SavePath()
                 p.y = r.y + r.height / 2;
 
                 point_path.push_back(p);
-
-                if (first)
-                    Startgrid = r;
 
 
             }
@@ -484,6 +522,34 @@ void Pilot::drive()
     Detection::GetView(image, stream, p_M, p_cadre, p_mask);
     image.release();
 
+    //calibration of camera
+    int mid_height = stream.size().height / 2;
+    int mid_width = stream.size().width / 2;
+
+    cv::Point p0;
+    p0.x = mid_width - (30 * 2 + 1);
+    p0.y = mid_height - (20 * 2 + 1);
+
+    cv::Point p1;
+    p1.x = mid_width + (30 * 2 + 1);
+    p1.y = mid_height - (20 * 2 + 1);
+
+    cv::Point p2;
+    p2.x = mid_width + (30 * 2 + 1);
+    p2.y = mid_height + (20 * 2 + 1);
+
+    p_pointVec.push_back(p0);
+    p_pointVec.push_back(p1);
+    p_pointVec.push_back(p2);
+
+    double disty =sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2));
+    double distx = sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2));
+
+    factorPxl = ((disty / 30)+(distx/20))/2;
+
+
+
+
     cv::Mat trackMask;
     cv::resize(p_mask, trackMask, cv::Size(), 2.0, 2.0);
 
@@ -495,7 +561,7 @@ void Pilot::drive()
     double LearningRate = 0.01;
     std::vector<std::vector<cv::Point>> car1;
 
-    for (int i = 0; i < 15; i++)
+    /*for (int i = 0; i < 15; i++)
     {
         state = p_cap.read(image);
         Detection::GetView(image, stream, p_M, p_cadre, p_mask);
@@ -503,7 +569,7 @@ void Pilot::drive()
 
         cv::bitwise_and(stream, stream, trackCar1, CarPath);
         car1 = Detection::BackgroundSubstraction(trackCar1, LearningRate);
-    }
+    }*/
     std::string wind_Vid = "Stream";
     cv::namedWindow(wind_Vid, cv::WINDOW_AUTOSIZE);
 
@@ -513,15 +579,15 @@ void Pilot::drive()
     int prvdata = 0x00;    
 
     int PosT = -1;
-    int shift = 0.2 * PointsSection.size();
+    int shift = 0.2*PointsSection.size();
 
 
 
     //compute first PosT index
-    cv::Point p;
+    cv::Point firstP;
 
-    p.x = Startgrid.x + Startgrid.width / 2;
-    p.y = Startgrid.y + Startgrid.height / 2;
+    firstP.x = Startgrid.x + Startgrid.width / 2;
+    firstP.y = Startgrid.y + Startgrid.height / 2;
 
 
     double shortestDist = 999999;
@@ -537,7 +603,7 @@ void Pilot::drive()
             val = i;
 
         //std::cout << "val = " << val << std::endl;
-        double dist = sqrt(pow(p.x - PointsSection[val].first.x, 2) + pow(p.y - PointsSection[val].first.y, 2));
+        double dist = sqrt(pow(firstP.x - PointsSection[val].first.x, 2) + pow(firstP.y - PointsSection[val].first.y, 2));
 
         if (dist < shortestDist)
         {
@@ -548,12 +614,35 @@ void Pilot::drive()
 
     PosT = shortestDistIdx;
 
-    bool firstLap=true;
+    /*if (PointsSection[PosT].second == STRAIGHT)
+        shift = 0.2 * PointsSection.size();
+    else if (PointsSection[PosT].second == TURN)
+        shift = 0.2 * PointsSection.size();
+    else if(PointsSection[PosT].second == TIGHTURN)
+        shift = 0.3 * PointsSection.size();*/
+
+    //bool firstLap=true;
 
     //start time of computing to schow number of fps 
     std::string fps;
     int frame_counter = 0;
     double startTime = (double)cv::getTickCount();
+
+
+
+
+    //test
+    for (int i = 0; i < p_pointVec.size(); i++)
+    {
+        std::cout << "Point " << i << " :( " << p_pointVec[i].x << "; " << p_pointVec[i].y << " );" << std::endl;
+    }
+    std::cout << "dim of image stream: " << stream.cols << " x " << stream.rows << std::endl;
+
+    std::cout << "Startgrid position to (" << Startgrid.x << ";" << Startgrid.y << ") with dim "<< Startgrid.width<<" x "<< Startgrid.height<<std::endl;
+
+
+
+    //
 
     while (state)
     {
@@ -582,6 +671,7 @@ void Pilot::drive()
         
 
         cv::Mat point = cv::Mat::zeros(stream.size(), CV_8U);
+
         if (p != cv::Point(-1, -1) && PosT != -1)
         {
             /*straight = CheckPath(p, StraightVecX, StraightVecY);
@@ -601,7 +691,7 @@ void Pilot::drive()
                 else
                     val = i;
 
-                std::cout << "val = " << val << std::endl;
+                //std::cout << "val = " << val << std::endl;
                 double dist = sqrt(pow(p.x - PointsSection[val].first.x,2)+pow(p.y - PointsSection[val].first.y, 2));
 
                 if (dist < shortestDist)
@@ -617,44 +707,48 @@ void Pilot::drive()
             if (shortestDistIdx != -1)
             {
                 PosT = shortestDistIdx;
+
+                /*if (PointsSection[PosT].second == STRAIGHT)
+                    shift = 0.2 * PointsSection.size();
+                else if (PointsSection[PosT].second == TURN)
+                    shift = 0.2 * PointsSection.size();
+                else if (PointsSection[PosT].second == TIGHTURN)
+                    shift = 0.3 * PointsSection.size();*/
             }
             else
             {
                 std::cout << "Car point nor found" << std::endl;
             }
-            
-            //use val in case of PosT is outside of the vec
-            int val;
-            if (PosT>= PointsSection.size())
-                val = PosT  - PointsSection.size();
+
+
+            int nextPos;
+
+            if (PosT + shift >= PointsSection.size())
+                nextPos = PosT + shift - PointsSection.size();
             else
-                val = PosT ;
+                nextPos = PosT + shift;
 
-            //std::cout << "val = " << val << std::endl;
 
-            if (PointsSection[val].second == STRAIGHT)
+            if (PointsSection[nextPos].second == STRAIGHT)
                 straight = true;
-            else if (PointsSection[val].second == TURN)
+            else if (PointsSection[nextPos].second == TURN)
                 turn = true;
-            else if (PointsSection[val].second == TIGHTURN)
+            else if (PointsSection[nextPos].second == TIGHTURN)
                 tightturn = true;
 
            
             if (straight)
             {
-                //circle(stream, cv::Point(10, 10), 5, cv::Scalar(255, 0, 0), -1);
                 valToSend = 100;
             }
 
             if (turn)
             {
-                //circle(stream, cv::Point(10, 20), 5, cv::Scalar(0, 255, 0), -1);
                 valToSend = 80;
             }     
 
             if (tightturn)
             {
-                //circle(stream, cv::Point(10, 30), 5, cv::Scalar(0, 0, 255), -1);
                 valToSend = 70;
             }
 
@@ -668,9 +762,10 @@ void Pilot::drive()
         }
 
 
-
-
-
+        for (int i = 0; i < p_pointVec.size(); i++)
+        {
+            cv::circle(stream, p_pointVec[i], 2, cv::Scalar(0,255,0), 2);
+        }
 
         //draw all rectangles of the sections on the screen
         for (int i = 0; i < StraightRect.size(); i++)
@@ -701,7 +796,7 @@ void Pilot::drive()
 
         //show time to process
         double time = ((double)cv::getTickCount() - start) / cv::getTickFrequency();
-        std::string txt = std::to_string(time/1000) + " ms";
+        std::string txt = std::to_string(time*1000) + " ms";
         cv::putText(stream, txt, cv::Point(20, 40), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 0), 2);
 
 

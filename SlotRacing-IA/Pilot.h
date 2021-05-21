@@ -20,6 +20,9 @@ private:
 	const unsigned int TURN = 2;
 	const unsigned int TIGHTURN = 3;
 
+	//lenght of 1 pixel in cm
+	double factorPxl;
+
 
 
 	std::vector<cv::Rect2d> StraightRect;
@@ -45,8 +48,10 @@ private:
 	std::vector<std::pair<cv::Point2f, int>> PointsSection;
 
 	//Rect of the start point
-	cv::Rect2d Startgrid;
+	cv::Rect Startgrid;
 	
+	//vector use to calibrate camera
+	std::vector<cv::Point> p_pointVec;
 
 
 	SerialPort* bridge;

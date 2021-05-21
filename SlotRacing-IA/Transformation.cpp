@@ -390,7 +390,7 @@ void Transformation::ComputeTransformViewParam()
         }
 
 
-        //reframe teh image so there is only the track remaining
+        //reframe the image so there is only the track remaining
         t_cadre = boundingRect(FirstHull[largest_contour_index]);
 
         t_cadre.width += offset_rect;
@@ -534,29 +534,6 @@ bool Transformation::GetView(cv::Mat& output)
 
     return state;
 };
-
-/*
-void Transformation::GetView(cv::Mat& input, cv::Mat& output, cv::Mat& M, cv::Rect2d& r, cv::Mat& mask)
-{
-    cv::Mat flat, bitAndImg;
-
-
-    cv::warpPerspective(input, flat, M, input.size());
-
-    cv::Mat im(flat);
-    cv::Mat resized = im(r);
-
-    bitwise_and(resized, resized, bitAndImg, mask);
-
-    cv::resize(bitAndImg, output, cv::Size(), 2, 2, cv::INTER_LINEAR);
-
-    resized.release();
-
-
-    flat.release();
-    bitAndImg.release();
-
-};*/
 
 
 void Transformation::GetTransformParam(cv::Mat& M, cv::Rect2d& r, cv::Mat& mask)
