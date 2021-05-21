@@ -633,34 +633,37 @@ void Pilot::drive()
 
     }
 
-    //start time of computing to schow number of fps 
+    cv::Point Prevp = firstP;
+
+    //start time of computing to schow number of fps
     std::string fps;
     int frame_counter = 0;
     double startTime = (double)cv::getTickCount();
 
+    bool lap = true;
+    bool inStart = false;
+    int laps = 0;
+    double lapTime = (double)cv::getTickCount();
+    double endLap=0;
 
 
-
-    //test
-    for (int i = 0; i < p_pointVec.size(); i++)
-    {
-        std::cout << "Point " << i << " :( " << p_pointVec[i].x << "; " << p_pointVec[i].y << " );" << std::endl;
-    }
-    std::cout << "dim of image stream: " << stream.cols << " x " << stream.rows << std::endl;
-
-    std::cout << "Startgrid position to (" << Startgrid.x << ";" << Startgrid.y << ") with dim "<< Startgrid.width<<" x "<< Startgrid.height<<std::endl;
-
-
-
-    //
-
-    cv::Point Prevp = firstP;
+   
     while (state)
     {
+
+        
+        //stat.size() = stream.size();
+
         double start = (double)cv::getTickCount();
         state = p_cap.read(image);
         Detection::GetView(image, stream, p_M, p_cadre, p_mask);
         image.release();
+
+
+
+
+        cv::Mat point = cv::Mat::zeros(stream.size(), CV_8U);
+        cv::Mat stat = cv::Mat::zeros(stream.size(), CV_8U);
 
         cv::bitwise_and(stream, stream, trackCar1, CarPath);
         car1 = Detection::BackgroundSubstraction(trackCar1, LearningRate);
@@ -681,8 +684,11 @@ void Pilot::drive()
 
         
 
-        cv::Mat point = cv::Mat::zeros(stream.size(), CV_8U);
+        
 
+
+
+        //***************************Taking decision********************************************
         if (p != cv::Point(-1, -1) && PosT != -1)
         {
             /*straight = CheckPath(p, StraightVecX, StraightVecY);
@@ -789,17 +795,45 @@ void Pilot::drive()
                 prvdata = data;
             }
 
+
+
+
+            //***************************compute tour********************************************
+
+            
+
+            if (inStart && !lap)
+            {
+                lap = true;
+                laps++;
+
+                endLap = ((cv::getTickCount() - lapTime) / cv::getTickFrequency())*1000;
+                lapTime = cv::getTickCount();
+
+                
+            }
+
+            if (p.x > Startgrid.x && p.x < Startgrid.x + Startgrid.width &&
+                p.y> Startgrid.y && p.y < Startgrid.y + Startgrid.height)
+            {
+                inStart = true;
+            }
+            else
+            {
+                inStart = false;
+                lap = false;
+            }
         }
 
         Prevp = p;
 
-        for (int i = 0; i < p_pointVec.size(); i++)
+        /*for (int i = 0; i < p_pointVec.size(); i++)
         {
             cv::circle(stream, p_pointVec[i], 2, cv::Scalar(0,255,0), 2);
-        }
+        }*/
 
         //draw all rectangles of the sections on the screen
-        for (int i = 0; i < StraightRect.size(); i++)
+        /*for (int i = 0; i < StraightRect.size(); i++)
         {
             cv::rectangle(stream, StraightRect[i], cv::Scalar(0, 255, 255), 2);
         }
@@ -811,7 +845,7 @@ void Pilot::drive()
         {
             cv::rectangle(stream, TightTurnRect[i], cv::Scalar(0, 0, 255), 2);
         }
-        cv::rectangle(stream, Startgrid, cv::Scalar(255, 255, 255), 2);
+        cv::rectangle(stream, Startgrid, cv::Scalar(255, 255, 255), 2);*/
 
 
         //shoow fps
@@ -823,22 +857,32 @@ void Pilot::drive()
             frame_counter = 0;
             startTime = cv::getTickCount();
         }
-        cv::putText(stream, fps, cv::Point(20, 20), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 0), 2);
+        cv::putText(stat, fps, cv::Point(20, 20), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
 
         //show time to process
         double time = ((double)cv::getTickCount() - start) / cv::getTickFrequency();
-        std::string txt = std::to_string(time*1000) + " ms";
-        cv::putText(stream, txt, cv::Point(20, 40), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 0), 2);
+        std::string time_txt = std::to_string(time*1000) + " ms";
+        cv::putText(stat, time_txt, cv::Point(20, 40), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
 
 
+        //show number of laps
+        std::string lap_txt = std::to_string(laps) + " laps";
+        cv::putText(stat, lap_txt, cv::Point(20, 60), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
+
+
+        //show time of the lap
+        std::string lap_time_txt = "lap in " + std::to_string(round(endLap)) + " ms";
+        cv::putText(stat, lap_time_txt, cv::Point(20, 80), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
 
         cv::imshow(wind_Vid, stream);
-        cv::imshow("car1 IA", trackCar1);
+        //cv::imshow("car1 IA", trackCar1);
         cv::imshow("Points", point);
+        cv::imshow("Stats", stat);
 
         stream.release();
         trackCar1.release();
         point.release();
+        stat.release();
 
 
         if (cv::waitKey(10) == 27)
