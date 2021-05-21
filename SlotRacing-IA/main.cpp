@@ -68,7 +68,6 @@ int main()
 
     //****************************Starting process to isolate track*************************************
 
-
     Transformation Transfo(cap);
     Transfo.Process();
     Transfo.GetTransformParam(M, cadre, mask);
@@ -93,30 +92,18 @@ int main()
 
     //****************************Select ROI for sections*************************************    
     
-
     Pilot Hamilton(cap, M, cadre, mask);
 
     Transfo.GetView(stream);
     Hamilton.SectionsSelecter(stream);
 
-
-
     //****************************Detection of the path by vector of points*************************************
         
     Hamilton.SavePath();
-
-    //****************************From path and Section get order******************************************
-
-
-   
-    Hamilton.DecomposePath(stream.size());
     stream.release();
-
     //****************************Get car separatly******************************************
 
-    
     Hamilton.train();
-
     Hamilton.drive();
    
     //****************************Quit*************************************

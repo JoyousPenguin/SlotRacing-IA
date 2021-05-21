@@ -77,6 +77,25 @@ void Pilot::selection(cv::Mat& image, cv::Mat& output, int nbre)
 };
 
 
+void Pilot::CompleteVect(cv::Mat& SectionsImg, std::vector<cv::Rect2d>& SectionsRect, std::vector<int>& SectionsVecX, std::vector<int>& SectionsVecY)
+{
+    std::vector<std::vector<cv::Point>> Contours;
+    cv::findContours(SectionsImg, Contours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
+
+    for (int i = 0; i < Contours.size(); i++)
+    {
+        cv::Rect2d r = cv::boundingRect(Contours[i]);
+        SectionsRect.push_back(r);
+
+        SectionsVecX.push_back(r.x);
+        SectionsVecX.push_back(r.x + r.width);
+
+        SectionsVecY.push_back(r.y);
+        SectionsVecY.push_back(r.y + r.height);
+    }
+}
+
+
 void Pilot::SectionsSelecter(cv::Mat& image)
 {
     cv::Mat frame;
@@ -110,6 +129,18 @@ void Pilot::SectionsSelecter(cv::Mat& image)
     selection(frame, TurnSections, nbre);
     frame.release();
 
+    //SELECT START GRID
+    frame = image.clone();
+    std::cout << "Select the start grid of the track" << std::endl;
+    nbre = 1;
+    std::string wind_roi = "Select sections";
+    cv::namedWindow(wind_roi, cv::WINDOW_AUTOSIZE);
+
+    Startgrid= cv::selectROI(wind_roi, frame, false);
+
+    cv::destroyWindow(wind_roi);
+    frame.release();
+
     //DRAW ALL SECTIONS------------------------
 
     std::string StraightWind = "Straight sections";
@@ -131,6 +162,15 @@ void Pilot::SectionsSelecter(cv::Mat& image)
     cv::destroyWindow(StraightWind);
     cv::destroyWindow(TightTurntWind);
     cv::destroyWindow(TurnWind);
+
+
+
+    //fill the SectionVecX - SectionVecY
+    CompleteVect(StraightSections, StraightRect, StraightVecX, StraightVecY);
+
+    CompleteVect(TurnSections, TurnRect, TurnVecX, TurnVecY);
+
+    CompleteVect(TightTurnSections, TightTurnRect, TightTurnVecX, TightTurnVecY);
 };
 
 
@@ -252,8 +292,8 @@ void Pilot::getPath(std::vector<cv::Point> points, cv::Mat& drawing_path)
         if (prev < 0)
             prev = ordered_point_path.size() + prev;
 
-        std::cout << "Points " << i << " -- ( " << ordered_point_path[i].x << " ; " << ordered_point_path[i].y << " ) ";
-        std::cout << " -- FILTERED = ( " << filtered_ordered_point_path[i].y << " ; " << filtered_ordered_point_path[i].y << " )" << std::endl;
+        //std::cout << "Points " << i << " -- ( " << ordered_point_path[i].x << " ; " << ordered_point_path[i].y << " ) ";
+        //std::cout << " -- FILTERED = ( " << filtered_ordered_point_path[i].y << " ; " << filtered_ordered_point_path[i].y << " )" << std::endl;
 
         /*cv::circle(drawing_path, ordered_point_path[prev], 1, cv::Scalar(125), 1, cv::LINE_8);
         cv::circle(drawing_path, ordered_point_path[i], 1, cv::Scalar(125), 1, cv::LINE_8);
@@ -267,6 +307,10 @@ void Pilot::getPath(std::vector<cv::Point> points, cv::Mat& drawing_path)
         line(drawing_path, filtered_ordered_point_path[prev], filtered_ordered_point_path[i], cv::Scalar(255), 1, cv::LINE_8);
 
     }
+
+    cv::imshow("Path", drawing_path);
+    cv::waitKey(0);
+    cv::destroyWindow("Path");
 }
 
 
@@ -290,6 +334,9 @@ void Pilot::SavePath()
 
     double LearningRate = 0.01;
     mvt = Detection::BackgroundSubstraction(stream, LearningRate);
+    bool first = true;
+
+    
 
     while (state)
     {
@@ -299,8 +346,7 @@ void Pilot::SavePath()
 
         mvt = Detection::BackgroundSubstraction(stream, LearningRate);
 
-
-        if (mvt.size() <= 2)
+        if (mvt.size() != 0)
         {
             for (int i = 0; i < mvt.size(); i++)
             {
@@ -313,6 +359,11 @@ void Pilot::SavePath()
                 p.y = r.y + r.height / 2;
 
                 point_path.push_back(p);
+
+                if (first)
+                    Startgrid = r;
+
+
             }
         }
         imshow(wind, stream);
@@ -337,159 +388,9 @@ void Pilot::SavePath()
 
     cv::destroyWindow(wind);
 
-};
-
-
-void Pilot::DecomposePath(cv::Size p)
-{
-    int count = 0;
-    int val = 0;
-    int prevVal = 0;
-
-    for (int i = 0; i < filtered_ordered_point_path.size(); i++)
-    {
-        cv::Mat Black = cv::Mat::zeros(p, CV_8U);
-
-        cv::circle(Black, filtered_ordered_point_path[i], 1, cv::Scalar(255));
-
-        cv::Mat result;
-        val = 0;
-
-
-        cv::bitwise_and(Black, Black, result, StraightSections);
-        if (cv::countNonZero(result) == 0)
-        {
-            cv::bitwise_and(Black, Black, result, TurnSections);
-            if (cv::countNonZero(result) == 0)
-            {
-                cv::bitwise_and(Black, Black, result, TightTurnSections);
-                if (cv::countNonZero(result) == 0)
-                    val = -1;
-                else
-                    val = 3;
-            }
-            else
-                val = 2;
-
-        }
-        else
-            val = 1;
-
-        if (val == prevVal || i == 0)
-        {
-            count++;
-            prevVal = val;
-        }
-        else if (val == -1)
-            std::cout << "Error in track" << std::endl;
-        else
-        {
-            std::pair<int, int> answer;
-            answer.first = prevVal;
-            answer.second = count;
-
-            Track.push_back(answer);
-
-            count = 0;
-            prevVal = val;
-        }
-    }
-
-    for (int i = 0; i < Track.size(); i++)
-    {
-        std::cout << " Section: " << Track[i].first << " of size: " << Track[i].second << std::endl;
-    }
-};
-
-
-void Pilot::CompleteVect(cv::Mat& SectionsImg, std::vector<cv::Rect2d>& SectionsRect, std::vector<int>& SectionsVecX, std::vector<int>& SectionsVecY)
-{
-    std::vector<std::vector<cv::Point>> Contours;
-    cv::findContours(SectionsImg, Contours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
-
-    for (int i = 0; i < Contours.size(); i++)
-    {
-        cv::Rect2d r = cv::boundingRect(Contours[i]);
-        SectionsRect.push_back(r);
-
-        SectionsVecX.push_back(r.x);
-        SectionsVecX.push_back(r.x + r.width);
-
-        SectionsVecY.push_back(r.y);
-        SectionsVecY.push_back(r.y + r.height);
-    }
-}
-
-
-void Pilot::train()
-{
-    /*
-    * à partir des masques on choppe les boundingRect
-    * 
-    * dans vecteur RectstraightSectionX on stock
-    *   minVAL1 maxVAL1 minVAL2 maxVAL2 ...
-    * 
-    * Track.first = section
-    * Track.second = size
-    * 
-    */
-
-    CompleteVect(StraightSections, StraightRect, StraightVecX, StraightVecY);
-
-    CompleteVect(TurnSections, TurnRect, TurnVecX, TurnVecY);
-
-    CompleteVect(TightTurnSections, TightTurnRect, TightTurnVecX, TightTurnVecY);
-
-    int total = 0;
-
-    for (int i = 0 ; i < Track.size(); i++)
-    {
-        total += Track[i].second;
-    }
-
-    int packetSize = total * 0.10;
 
 
 
-
-    StraightVecX.clear();
-    StraightVecY.clear();
-    for (int i = 0; i < StraightRect.size(); i++)
-    {
-        if(StraightRect[i].width > StraightRect[i].height && StraightRect[i].width > packetSize) // Straight Section horizontal
-        {
-            int divideBy = (StraightRect[i].width / packetSize)+1;
-
-            for (int j = 0; j < divideBy; j++)
-            {
-
-                if(j * packetSize < StraightRect[i].width)
-                    StraightVecX.push_back(StraightRect[i].x + j*packetSize);
-                else
-                    StraightVecX.push_back(StraightRect[i].x + StraightRect[i].width);
-            }
-
-            StraightVecY.push_back(StraightRect[i].y);
-            StraightVecY.push_back(StraightRect[i].y+StraightRect[i].height);
-
-        }
-        else if(StraightRect[i].height > StraightRect[i].width && StraightRect[i].height > packetSize) // Straight Section vertical
-        {
-            int divideBy = (StraightRect[i].height / packetSize) + 1;
-
-            for (int j = 0; j < divideBy; j++)
-            {
-
-                if (j * packetSize < StraightRect[i].height)
-                    StraightVecY.push_back(StraightRect[i].y + j * packetSize);
-                else
-                    StraightVecY.push_back(StraightRect[i].y + StraightRect[i].height);
-            }
-
-            StraightVecX.push_back(StraightRect[i].x);
-            StraightVecX.push_back(StraightRect[i].x + StraightRect[i].width);
-        }
-    }
 };
 
 
@@ -524,9 +425,60 @@ bool Pilot::CheckPath(cv::Point p, std::vector<int>SectionVecX, std::vector<int>
 };
 
 
+//from a point, say
+int Pilot::getSection(cv::Point2f p)
+{
+    cv::Mat Black = cv::Mat::zeros(CarPath.size(), CV_8U);
+    cv::circle(Black, p, 1, cv::Scalar(255));
+    cv::Mat result;
+
+
+    cv::bitwise_and(Black, Black, result, StraightSections);
+    if (cv::countNonZero(result) == 0)
+    {
+        cv::bitwise_and(Black, Black, result, TurnSections);
+        if (cv::countNonZero(result) == 0)
+        {
+            cv::bitwise_and(Black, Black, result, TightTurnSections);
+            if (cv::countNonZero(result) == 0)
+                return INVALID;
+            else
+                return TIGHTURN;
+        }
+        else
+            return TURN;
+
+    }
+    else
+        return STRAIGHT;
+};
+
+
+void Pilot::train()
+{
+    //fil the vectors PointsSection
+
+    std::pair<cv::Point2f, int> PointSection;
+
+    std::vector<std::pair<int, double>> temp;
+
+    //std::cout << "filtered_ordered_point_path.size() = " << filtered_ordered_point_path.size() << std::endl;
+
+    for (int i = 0; i < filtered_ordered_point_path.size(); i++)
+    {
+        PointSection.first = filtered_ordered_point_path[i];
+        PointSection.second = getSection(filtered_ordered_point_path[i]);
+
+        PointsSection.push_back(PointSection);
+
+    }
+};
+
+
 void Pilot::drive()
 {
     cv::Mat image, stream;
+    
 
     bool state = p_cap.read(image);
     Detection::GetView(image, stream, p_M, p_cadre, p_mask);
@@ -542,18 +494,8 @@ void Pilot::drive()
 
     double LearningRate = 0.01;
     std::vector<std::vector<cv::Point>> car1;
-    car1 = Detection::BackgroundSubstraction(trackCar1 ,LearningRate);
 
-
-    std::string wind_Vid = "Stream";
-    cv::namedWindow(wind_Vid, cv::WINDOW_AUTOSIZE);
-
-    std::cout << "==== START ====" << std::endl;
-
-    char data = 0x32;
-    char prvdata = 0x00;
-
-    while (state)
+    for (int i = 0; i < 15; i++)
     {
         state = p_cap.read(image);
         Detection::GetView(image, stream, p_M, p_cadre, p_mask);
@@ -561,7 +503,69 @@ void Pilot::drive()
 
         cv::bitwise_and(stream, stream, trackCar1, CarPath);
         car1 = Detection::BackgroundSubstraction(trackCar1, LearningRate);
+    }
+    std::string wind_Vid = "Stream";
+    cv::namedWindow(wind_Vid, cv::WINDOW_AUTOSIZE);
+
+    std::cout << "==== START ====" << std::endl;
+
+    int valToSend = 50;
+    int prvdata = 0x00;    
+
+    int PosT = -1;
+    int shift = 0.2 * PointsSection.size();
+
+
+
+    //compute first PosT index
+    cv::Point p;
+
+    p.x = Startgrid.x + Startgrid.width / 2;
+    p.y = Startgrid.y + Startgrid.height / 2;
+
+
+    double shortestDist = 999999;
+    int shortestDistIdx = -1;
+
+    for (int i = 0; i <= PointsSection.size(); i++)
+    {
+        int val;
+
+        if (i >= PointsSection.size())
+            val = i - PointsSection.size();
+        else
+            val = i;
+
+        //std::cout << "val = " << val << std::endl;
+        double dist = sqrt(pow(p.x - PointsSection[val].first.x, 2) + pow(p.y - PointsSection[val].first.y, 2));
+
+        if (dist < shortestDist)
+        {
+            shortestDistIdx = val;
+            shortestDist = dist;
+        }
+    }
+
+    PosT = shortestDistIdx;
+
+    bool firstLap=true;
+
+    //start time of computing to schow number of fps 
+    std::string fps;
+    int frame_counter = 0;
+    double startTime = (double)cv::getTickCount();
+
+    while (state)
+    {
+        double start = (double)cv::getTickCount();
+        state = p_cap.read(image);
+        Detection::GetView(image, stream, p_M, p_cadre, p_mask);
+        image.release();
+
+        cv::bitwise_and(stream, stream, trackCar1, CarPath);
+        car1 = Detection::BackgroundSubstraction(trackCar1, LearningRate);
         cv::Point p = cv::Point(-1,-1);
+
         for (int i = 0; i < car1.size(); i++)
         {
             cv::Rect2d r = boundingRect(car1[i]);
@@ -570,17 +574,108 @@ void Pilot::drive()
             cv::circle(stream, p, 2, cv::Scalar(0, 0, 255));
         }
 
-
         //processing car1 to detect position of car
         bool straight = false;
-
         bool turn = false;
-
         bool tightturn = false;
 
+        
+
+        cv::Mat point = cv::Mat::zeros(stream.size(), CV_8U);
+        if (p != cv::Point(-1, -1) && PosT != -1)
+        {
+            /*straight = CheckPath(p, StraightVecX, StraightVecY);
+            turn = CheckPath(p, TurnVecX, TurnVecY);
+            tightturn = CheckPath(p, TightTurnVecX, TightTurnVecY);*/
+
+
+            double shortestDist = 999999;
+            int shortestDistIdx = -1;
+
+            for (int i = PosT; i <= PosT + shift; i++)
+            {
+                int val;
+                
+                if (i >= PointsSection.size())
+                    val = i - PointsSection.size();
+                else
+                    val = i;
+
+                std::cout << "val = " << val << std::endl;
+                double dist = sqrt(pow(p.x - PointsSection[val].first.x,2)+pow(p.y - PointsSection[val].first.y, 2));
+
+                if (dist < shortestDist)
+                {
+                    shortestDistIdx = val;
+                    shortestDist = dist;
+                }
+
+                cv::circle(point, PointsSection[val].first, 2, cv::Scalar(125),2);
+                cv::circle(point, p, 2, cv::Scalar(255), 2);
+            }
+
+            if (shortestDistIdx != -1)
+            {
+                PosT = shortestDistIdx;
+            }
+            else
+            {
+                std::cout << "Car point nor found" << std::endl;
+            }
+            
+            //use val in case of PosT is outside of the vec
+            int val;
+            if (PosT>= PointsSection.size())
+                val = PosT  - PointsSection.size();
+            else
+                val = PosT ;
+
+            //std::cout << "val = " << val << std::endl;
+
+            if (PointsSection[val].second == STRAIGHT)
+                straight = true;
+            else if (PointsSection[val].second == TURN)
+                turn = true;
+            else if (PointsSection[val].second == TIGHTURN)
+                tightturn = true;
+
+           
+            if (straight)
+            {
+                //circle(stream, cv::Point(10, 10), 5, cv::Scalar(255, 0, 0), -1);
+                valToSend = 100;
+            }
+
+            if (turn)
+            {
+                //circle(stream, cv::Point(10, 20), 5, cv::Scalar(0, 255, 0), -1);
+                valToSend = 80;
+            }     
+
+            if (tightturn)
+            {
+                //circle(stream, cv::Point(10, 30), 5, cv::Scalar(0, 0, 255), -1);
+                valToSend = 70;
+            }
+
+            if (valToSend != prvdata)
+            {
+                char data = valToSend;
+                bridge->writeSerialPort(&data, 1);
+                prvdata = data;
+            }
+
+        }
+
+
+
+
+
+
+        //draw all rectangles of the sections on the screen
         for (int i = 0; i < StraightRect.size(); i++)
         {
-            cv::rectangle(stream, StraightRect[i], cv::Scalar(255, 0, 0), 2);
+            cv::rectangle(stream, StraightRect[i], cv::Scalar(0, 255, 255), 2);
         }
         for (int i = 0; i < TurnRect.size(); i++)
         {
@@ -590,44 +685,34 @@ void Pilot::drive()
         {
             cv::rectangle(stream, TightTurnRect[i], cv::Scalar(0, 0, 255), 2);
         }
+        cv::rectangle(stream, Startgrid, cv::Scalar(255, 255, 255), 2);
 
 
-        if (p != cv::Point(-1, -1))
+        //shoow fps
+        frame_counter++;
+        if (((double)cv::getTickCount() - startTime) / cv::getTickFrequency() >= 1.0)
         {
-            straight = CheckPath(p, StraightVecX, StraightVecY);
-            turn = CheckPath(p, TurnVecX, TurnVecY);
-            tightturn = CheckPath(p, TightTurnVecX, TightTurnVecY);
+            fps = std::to_string(frame_counter) + " FPS";
 
-            if (straight)
-            {
-                circle(stream, cv::Point(10, 10), 5, cv::Scalar(255, 0, 0), -1);
-                data = 0x64;
-            }
-
-            if (turn)
-            {
-                circle(stream, cv::Point(10, 20), 5, cv::Scalar(0, 255, 0), -1);
-                data = 0x50;
-            }     
-
-            if (tightturn)
-            {
-                circle(stream, cv::Point(10, 30), 5, cv::Scalar(0, 0, 255), -1);
-                data = 0x46;
-            }
-
-            if (data != prvdata)
-            {
-                bridge->writeSerialPort(&data, 1);
-                prvdata = data;
-            }
-
+            frame_counter = 0;
+            startTime = cv::getTickCount();
         }
+        cv::putText(stream, fps, cv::Point(20, 20), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 0), 2);
+
+        //show time to process
+        double time = ((double)cv::getTickCount() - start) / cv::getTickFrequency();
+        std::string txt = std::to_string(time/1000) + " ms";
+        cv::putText(stream, txt, cv::Point(20, 40), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 0), 2);
+
+
 
         cv::imshow(wind_Vid, stream);
         cv::imshow("car1 IA", trackCar1);
+        cv::imshow("Points", point);
+
         stream.release();
         trackCar1.release();
+        point.release();
 
 
         if (cv::waitKey(10) == 27)
@@ -635,7 +720,7 @@ void Pilot::drive()
     }
 
 
-    data = 0x00;
+    char data = 0x00;
     bridge->writeSerialPort(&data, 1);
     
     trackMask.release();

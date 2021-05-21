@@ -15,6 +15,13 @@ private:
 
 	cv::VideoCapture p_cap;
 
+	const unsigned int INVALID = -1;
+	const unsigned int STRAIGHT = 1;
+	const unsigned int TURN = 2;
+	const unsigned int TIGHTURN = 3;
+
+
+
 	std::vector<cv::Rect2d> StraightRect;
 	std::vector<int> StraightVecX;
 	std::vector<int> StraightVecY;
@@ -34,8 +41,13 @@ private:
 	//contains a mask of the path of the track
 	cv::Mat CarPath;
 
-	//list of section with size
-	std::vector<std::pair<int, int>> Track;
+	//contains all the point and the section in wich there are
+	std::vector<std::pair<cv::Point2f, int>> PointsSection;
+
+	//Rect of the start point
+	cv::Rect2d Startgrid;
+	
+
 
 	SerialPort* bridge;
 
@@ -50,6 +62,12 @@ private:
 
 	void getPath(std::vector<cv::Point> points, cv::Mat& drawing_path);
 
+
+	int getSection(cv::Point2f p);
+
+
+	int binary_search(const std::vector<std::pair<int, double>>& sorted_vec, double key);
+
 public:
 	Pilot(cv::VideoCapture cap, cv::Mat M, cv::Rect2d r, cv::Mat mask);
 
@@ -61,9 +79,6 @@ public:
 
 
 	void SavePath();
-
-
-	void DecomposePath(cv::Size p);
 
 
 	void train();

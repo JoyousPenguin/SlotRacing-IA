@@ -45,13 +45,33 @@ std::vector<std::vector<cv::Point>> Detection::BackgroundSubstraction(cv::Mat& s
     std::vector<std::vector<cv::Point>> Edges;
     cv::findContours(eroded, Edges, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
 
+
+    int biggestArea = 0;
+    int biggestAreaIdx = -1;
+
+    for (int i = 0; i < Edges.size(); i++)
+    {
+        if (cv::contourArea(Edges[i]) > biggestArea)
+        {
+            biggestAreaIdx = i;
+            biggestArea = cv::contourArea(Edges[i]);
+        }
+    }
+
+    std::vector<std::vector<cv::Point>> FinalEdges;
+
+    if(biggestAreaIdx != -1)
+        FinalEdges.push_back(Edges[biggestAreaIdx]);
+
+
+
     fgmask.release();
     fgmask_tresh.release();
     dilated.release();
     eroded.release();
 
 
-    return Edges;
+    return FinalEdges;
 };
 
 
