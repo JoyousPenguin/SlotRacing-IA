@@ -23,6 +23,8 @@ private:
 	//lenght of 1 pixel in cm
 	double factorPxl;
 
+	double Shift_cm = 20; //shift in cm for STRAIGHT sections
+
 
 
 	std::vector<cv::Rect2d> StraightRect;

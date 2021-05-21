@@ -341,17 +341,24 @@ void Pilot::getPath(std::vector<cv::Point> points, cv::Mat& drawing_path)
     }
     std::cout<<std::endl;
 
-    if (filtered_ordered_point_path[shortestDistIdx].x < filtered_ordered_point_path[shortestDistIdx+3].x)
+    int val = shortestDistIdx + 3;
+    if (val >= filtered_ordered_point_path.size())
+        val -= filtered_ordered_point_path.size();
+
+
+    if (filtered_ordered_point_path[shortestDistIdx].x < filtered_ordered_point_path[val].x)
     {
         std::cout << "Error encoding points -- reversing order" << std::endl;
 
         for (int i = 0; i < filtered_ordered_point_path.size() / 2; i++)
         {
             cv::Point p = filtered_ordered_point_path[i];
-            filtered_ordered_point_path[i] = filtered_ordered_point_path[filtered_ordered_point_path.size()-1 - i];
-            filtered_ordered_point_path[filtered_ordered_point_path.size()-1 - i] = p;
+            filtered_ordered_point_path[i] = filtered_ordered_point_path[filtered_ordered_point_path.size() - 1 - i];
+            filtered_ordered_point_path[filtered_ordered_point_path.size() - 1 - i] = p;
         }
     }
+    else
+        std::cout << "Path OK -- correcte order" << std::endl;
 }
 
 
@@ -542,10 +549,14 @@ void Pilot::drive()
     p_pointVec.push_back(p1);
     p_pointVec.push_back(p2);
 
-    double disty =sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2));
-    double distx = sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2));
+    double distx =sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2));
+    double disty = sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2));
 
-    factorPxl = ((disty / 30)+(distx/20))/2;
+    factorPxl = ((20/disty)+(30/distx))/2;
+
+    std::cout << "30 cm --> " << distx << " pxl" << std::endl;
+    std::cout << "20 cm --> " << disty << " pxl" << std::endl;
+    std::cout << factorPxl <<" cm --> 1 pxl" << std::endl;
 
 
 
@@ -561,15 +572,6 @@ void Pilot::drive()
     double LearningRate = 0.01;
     std::vector<std::vector<cv::Point>> car1;
 
-    /*for (int i = 0; i < 15; i++)
-    {
-        state = p_cap.read(image);
-        Detection::GetView(image, stream, p_M, p_cadre, p_mask);
-        image.release();
-
-        cv::bitwise_and(stream, stream, trackCar1, CarPath);
-        car1 = Detection::BackgroundSubstraction(trackCar1, LearningRate);
-    }*/
     std::string wind_Vid = "Stream";
     cv::namedWindow(wind_Vid, cv::WINDOW_AUTOSIZE);
 
@@ -579,7 +581,8 @@ void Pilot::drive()
     int prvdata = 0x00;    
 
     int PosT = -1;
-    int shift = 0.2*PointsSection.size();
+    int shift_pxl = Shift_cm * (1/factorPxl);
+    int shift;
 
 
 
@@ -593,35 +596,42 @@ void Pilot::drive()
     double shortestDist = 999999;
     int shortestDistIdx = -1;
 
-    for (int i = 0; i <= PointsSection.size(); i++)
+    for (int i = 0; i < PointsSection.size(); i++)
     {
-        int val;
-
-        if (i >= PointsSection.size())
-            val = i - PointsSection.size();
-        else
-            val = i;
 
         //std::cout << "val = " << val << std::endl;
-        double dist = sqrt(pow(firstP.x - PointsSection[val].first.x, 2) + pow(firstP.y - PointsSection[val].first.y, 2));
+        double dist = sqrt(pow(firstP.x - PointsSection[i].first.x, 2) + pow(firstP.y - PointsSection[i].first.y, 2));
 
         if (dist < shortestDist)
         {
-            shortestDistIdx = val;
+            shortestDistIdx = i;
             shortestDist = dist;
         }
     }
 
     PosT = shortestDistIdx;
 
-    /*if (PointsSection[PosT].second == STRAIGHT)
-        shift = 0.2 * PointsSection.size();
-    else if (PointsSection[PosT].second == TURN)
-        shift = 0.2 * PointsSection.size();
-    else if(PointsSection[PosT].second == TIGHTURN)
-        shift = 0.3 * PointsSection.size();*/
+    for (int i = 0; i < PointsSection.size(); i++)
+    {
+        int val= shortestDistIdx + i;
 
-    //bool firstLap=true;
+        if (val >= PointsSection.size())
+            val -= PointsSection.size();
+
+        double dist = sqrt(pow(PointsSection[shortestDistIdx].first.x - PointsSection[val].first.x, 2) + pow(PointsSection[shortestDistIdx].first.y - PointsSection[val].first.y, 2));
+
+        if (dist >= shift_pxl)
+        {
+            if (val > shortestDistIdx)
+                shift = val - shortestDistIdx;
+            else
+                shift = val + (PointsSection.size() - shortestDistIdx);
+
+            break;
+        }
+            
+
+    }
 
     //start time of computing to schow number of fps 
     std::string fps;
@@ -644,6 +654,7 @@ void Pilot::drive()
 
     //
 
+    cv::Point Prevp = firstP;
     while (state)
     {
         double start = (double)cv::getTickCount();
@@ -685,6 +696,20 @@ void Pilot::drive()
             for (int i = PosT; i <= PosT + shift; i++)
             {
                 int val;
+
+                if (i >= PointsSection.size())
+                    val = i - PointsSection.size();
+                else
+                    val = i;
+
+                cv::circle(point, PointsSection[val].first, 2, cv::Scalar(125), 2);
+                cv::circle(point, Prevp, 2, cv::Scalar(255), 2);
+            }
+
+
+            for (int i = PosT; /*i <= PosT + shift*/; i++)
+            {
+                int val;
                 
                 if (i >= PointsSection.size())
                     val = i - PointsSection.size();
@@ -699,21 +724,26 @@ void Pilot::drive()
                     shortestDistIdx = val;
                     shortestDist = dist;
                 }
+                else if (shortestDistIdx != -1)
+                {
+                    dist = sqrt(pow(PointsSection[shortestDistIdx].first.x - PointsSection[val].first.x, 2) + pow(PointsSection[shortestDistIdx].first.y - PointsSection[val].first.y, 2));
 
-                cv::circle(point, PointsSection[val].first, 2, cv::Scalar(125),2);
-                cv::circle(point, p, 2, cv::Scalar(255), 2);
+                    if (dist >= shift_pxl)
+                    {
+                        if (val > shortestDistIdx)
+                            shift = val - shortestDistIdx;
+                        else
+                            shift = val + (PointsSection.size() - shortestDistIdx);
+                        break;
+                    }
+                }
+
+                
             }
 
             if (shortestDistIdx != -1)
             {
                 PosT = shortestDistIdx;
-
-                /*if (PointsSection[PosT].second == STRAIGHT)
-                    shift = 0.2 * PointsSection.size();
-                else if (PointsSection[PosT].second == TURN)
-                    shift = 0.2 * PointsSection.size();
-                else if (PointsSection[PosT].second == TIGHTURN)
-                    shift = 0.3 * PointsSection.size();*/
             }
             else
             {
@@ -744,7 +774,7 @@ void Pilot::drive()
 
             if (turn)
             {
-                valToSend = 80;
+                valToSend = 90;
             }     
 
             if (tightturn)
@@ -761,6 +791,7 @@ void Pilot::drive()
 
         }
 
+        Prevp = p;
 
         for (int i = 0; i < p_pointVec.size(); i++)
         {
