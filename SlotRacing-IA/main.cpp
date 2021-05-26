@@ -25,7 +25,6 @@ int main()
 {
 	std::cout << "Program Start" << std::endl;
 
-
     //****************************Capturing Stream*************************************
     cv::VideoCapture cap(1);
     bool state;
@@ -103,7 +102,7 @@ int main()
     stream.release();
     //****************************Get car separatly******************************************
 
-    Hamilton.train();
+    Hamilton.train(stream);
     Hamilton.drive();
    
     //****************************Quit*************************************

@@ -281,10 +281,10 @@ void Pilot::getPath(std::vector<cv::Point> points, cv::Mat& drawing_path)
 
 
     //Draw the points of the track
-    //cv::Mat drawing_path(img.size(), CV_8UC1, cv::Scalar(0,0,0));
 
     std::cout << "ordered_point_path.size() = " << ordered_point_path.size() << " --- filtered_ordered_point_path.size() = " << filtered_ordered_point_path.size() << std::endl;
 
+    cv::Mat clone = drawing_path.clone();
 
     for (int i = 0; i < ordered_point_path.size(); i++)
     {
@@ -293,34 +293,21 @@ void Pilot::getPath(std::vector<cv::Point> points, cv::Mat& drawing_path)
         if (prev < 0)
             prev = ordered_point_path.size() + prev;
 
-        //std::cout << "Points " << i << " -- ( " << ordered_point_path[i].x << " ; " << ordered_point_path[i].y << " ) ";
-        //std::cout << " -- FILTERED = ( " << filtered_ordered_point_path[i].y << " ; " << filtered_ordered_point_path[i].y << " )" << std::endl;
-
-        /*cv::circle(drawing_path, ordered_point_path[prev], 1, cv::Scalar(125), 1, cv::LINE_8);
-        cv::circle(drawing_path, ordered_point_path[i], 1, cv::Scalar(125), 1, cv::LINE_8);
-
-        line(drawing_path, ordered_point_path[prev], ordered_point_path[i], cv::Scalar(125), 1, cv::LINE_8);*/
-
-
         cv::circle(drawing_path, filtered_ordered_point_path[prev], 1, cv::Scalar(255), 1, cv::LINE_8);
         cv::circle(drawing_path, filtered_ordered_point_path[i], 1, cv::Scalar(255), 1, cv::LINE_8);
 
         line(drawing_path, filtered_ordered_point_path[prev], filtered_ordered_point_path[i], cv::Scalar(255), 1, cv::LINE_8);
-        cv::imshow("Path", drawing_path);
-        cv::waitKey(0);
 
     }
 
-    
-    //cv::waitKey(0);
+    cv::imshow("Path", drawing_path);
+    cv::waitKey(0);
     cv::destroyWindow("Path");
 
 
 
 
     //check for the correct rotation
-
-
     cv::Point p;
     p.x = Startgrid.x + Startgrid.width / 2;
     p.y = Startgrid.y + Startgrid.height / 2;
@@ -424,6 +411,8 @@ void Pilot::SavePath()
 
     cv::Mat temp;
 
+    cv::imshow("Track", path);
+
     cv::dilate(path, temp, cv::Mat(), cv::Point(-1, -1), 20);
     cv::erode(temp, CarPath, cv::Mat(), cv::Point(-1, -1), 13);
 
@@ -499,7 +488,7 @@ int Pilot::getSection(cv::Point2f p)
 };
 
 
-void Pilot::train()
+void Pilot::train(cv::Mat& stream)
 {
     //fil the vectors PointsSection
 
@@ -515,19 +504,10 @@ void Pilot::train()
         PointSection.second = getSection(filtered_ordered_point_path[i]);
 
         PointsSection.push_back(PointSection);
-
     }
-};
 
 
-void Pilot::drive()
-{
-    cv::Mat image, stream;
-    
 
-    bool state = p_cap.read(image);
-    Detection::GetView(image, stream, p_M, p_cadre, p_mask);
-    image.release();
 
     //calibration of camera
     int mid_height = stream.size().height / 2;
@@ -549,16 +529,25 @@ void Pilot::drive()
     p_pointVec.push_back(p1);
     p_pointVec.push_back(p2);
 
-    double distx =sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2));
+    double distx = sqrt(pow(p0.x - p1.x, 2) + pow(p0.y - p1.y, 2));
     double disty = sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2));
 
-    factorPxl = ((20/disty)+(30/distx))/2;
+    factorPxl = ((20 / disty) + (30 / distx)) / 2;
 
-    std::cout << "30 cm --> " << distx << " pxl" << std::endl;
+    /*std::cout << "30 cm --> " << distx << " pxl" << std::endl;
     std::cout << "20 cm --> " << disty << " pxl" << std::endl;
-    std::cout << factorPxl <<" cm --> 1 pxl" << std::endl;
+    std::cout << factorPxl << " cm --> 1 pxl" << std::endl;*/
+};
 
 
+void Pilot::drive()
+{
+    cv::Mat image, stream;
+    
+
+    bool state = p_cap.read(image);
+    Detection::GetView(image, stream, p_M, p_cadre, p_mask);
+    image.release();
 
 
     cv::Mat trackMask;
@@ -588,7 +577,6 @@ void Pilot::drive()
 
     //compute first PosT index
     cv::Point firstP;
-
     firstP.x = Startgrid.x + Startgrid.width / 2;
     firstP.y = Startgrid.y + Startgrid.height / 2;
 
@@ -596,6 +584,7 @@ void Pilot::drive()
     double shortestDist = 999999;
     int shortestDistIdx = -1;
 
+    //check for the closest point of the start point
     for (int i = 0; i < PointsSection.size(); i++)
     {
 
@@ -611,6 +600,7 @@ void Pilot::drive()
 
     PosT = shortestDistIdx;
 
+    //anticipate of the track
     for (int i = 0; i < PointsSection.size(); i++)
     {
         int val= shortestDistIdx + i;
@@ -638,23 +628,29 @@ void Pilot::drive()
     //start time of computing to schow number of fps
     std::string fps;
     int frame_counter = 0;
-    double startTime = (double)cv::getTickCount();
+    double startTimefps = (double)cv::getTickCount();
 
+    //use to count the laps
     bool lap = true;
     bool inStart = false;
     int laps = 0;
+
+    //use to clock the laptime
     double lapTime = (double)cv::getTickCount();
     double endLap=0;
+    double bestLapTime = 999999;
+    double averageLapTime = 0;
+
+
+    double averageProcessTime=0;
 
 
    
     while (state)
     {
 
-        
-        //stat.size() = stream.size();
+        double startTimeProcess = (double)cv::getTickCount();
 
-        double start = (double)cv::getTickCount();
         state = p_cap.read(image);
         Detection::GetView(image, stream, p_M, p_cadre, p_mask);
         image.release();
@@ -680,9 +676,7 @@ void Pilot::drive()
         //processing car1 to detect position of car
         bool straight = false;
         bool turn = false;
-        bool tightturn = false;
-
-        
+        bool tightturn = false;   
 
         
 
@@ -699,6 +693,7 @@ void Pilot::drive()
             double shortestDist = 999999;
             int shortestDistIdx = -1;
 
+            //check for the closest point
             for (int i = PosT; i <= PosT + shift; i++)
             {
                 int val;
@@ -712,8 +707,8 @@ void Pilot::drive()
                 cv::circle(point, Prevp, 2, cv::Scalar(255), 2);
             }
 
-
-            for (int i = PosT; /*i <= PosT + shift*/; i++)
+            //anticipate track
+            for (int i = PosT; ; i++)
             {
                 int val;
                 
@@ -746,6 +741,7 @@ void Pilot::drive()
 
                 
             }
+
 
             if (shortestDistIdx != -1)
             {
@@ -798,7 +794,7 @@ void Pilot::drive()
 
 
 
-            //***************************compute tour********************************************
+            //***************************compute laps********************************************
 
             
 
@@ -808,9 +804,16 @@ void Pilot::drive()
                 laps++;
 
                 endLap = ((cv::getTickCount() - lapTime) / cv::getTickFrequency())*1000;
-                lapTime = cv::getTickCount();
+                lapTime = cv::getTickCount();  
 
-                
+
+                if (averageLapTime != 0)
+                    averageLapTime = averageLapTime * 0.5 + endLap * 0.5;
+                else
+                    averageLapTime = endLap;
+
+                if (endLap < bestLapTime)
+                    bestLapTime = endLap;
             }
 
             if (p.x > Startgrid.x && p.x < Startgrid.x + Startgrid.width &&
@@ -827,52 +830,43 @@ void Pilot::drive()
 
         Prevp = p;
 
-        /*for (int i = 0; i < p_pointVec.size(); i++)
-        {
-            cv::circle(stream, p_pointVec[i], 2, cv::Scalar(0,255,0), 2);
-        }*/
-
-        //draw all rectangles of the sections on the screen
-        /*for (int i = 0; i < StraightRect.size(); i++)
-        {
-            cv::rectangle(stream, StraightRect[i], cv::Scalar(0, 255, 255), 2);
-        }
-        for (int i = 0; i < TurnRect.size(); i++)
-        {
-            cv::rectangle(stream, TurnRect[i], cv::Scalar(0, 255, 0), 2);
-        }
-        for (int i = 0; i < TightTurnRect.size(); i++)
-        {
-            cv::rectangle(stream, TightTurnRect[i], cv::Scalar(0, 0, 255), 2);
-        }
-        cv::rectangle(stream, Startgrid, cv::Scalar(255, 255, 255), 2);*/
-
-
-        //shoow fps
+        //***************************show fps********************************************
         frame_counter++;
-        if (((double)cv::getTickCount() - startTime) / cv::getTickFrequency() >= 1.0)
+        if (((double)cv::getTickCount() - startTimefps) / cv::getTickFrequency() >= 1.0)
         {
             fps = std::to_string(frame_counter) + " FPS";
 
             frame_counter = 0;
-            startTime = cv::getTickCount();
+            startTimefps = cv::getTickCount();
         }
         cv::putText(stat, fps, cv::Point(20, 20), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
 
-        //show time to process
-        double time = ((double)cv::getTickCount() - start) / cv::getTickFrequency();
-        std::string time_txt = std::to_string(time*1000) + " ms";
+
+        //***************************show time to process********************************************
+        double Processtime = ((double)cv::getTickCount() - startTimeProcess) / cv::getTickFrequency();
+        std::string time_txt = std::to_string(Processtime *1000) + " ms";
         cv::putText(stat, time_txt, cv::Point(20, 40), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
 
+
+        //********************************************compute average process time********************************************
+        if (averageProcessTime != 0)
+            averageProcessTime = averageProcessTime * 0.5 + Processtime * 1000 * 0.5;
+        else
+            averageProcessTime = Processtime;
 
         //show number of laps
         std::string lap_txt = std::to_string(laps) + " laps";
         cv::putText(stat, lap_txt, cv::Point(20, 60), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
 
 
-        //show time of the lap
+        //********************************************show time of the lap********************************************
         std::string lap_time_txt = "lap in " + std::to_string(round(endLap)) + " ms";
         cv::putText(stat, lap_time_txt, cv::Point(20, 80), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
+
+        
+
+
+
 
         cv::imshow(wind_Vid, stream);
         //cv::imshow("car1 IA", trackCar1);
@@ -892,7 +886,29 @@ void Pilot::drive()
 
     char data = 0x00;
     bridge->writeSerialPort(&data, 1);
-    
+
+
+    /*View of the average stats of the race*/
+    std::cout << "==========================================" << std::endl;
+    std::cout << "Stats of the race:" << std::endl;
+    std::cout << "==========================================" << std::endl;
+
+    //average porcess time
+    std::cout << "Average process time = " << averageProcessTime << " ms" << std::endl;
+    std::cout << "-" << std::endl;
+
+    //average lap time
+    std::cout << "Average lap time = " << averageLapTime << " ms" << std::endl;
+    std::cout << "-" << std::endl;
+
+    //number of laps
+    std::cout << "Numbers of laps = " << laps << " laps" << std::endl;
+    std::cout << "-" << std::endl;
+
+    //best lap time
+    std::cout << "BEST lap time = " << bestLapTime << " ms" << std::endl;
+    std::cout << "==========================================" << std::endl;
+
     trackMask.release();
     
 };

@@ -208,18 +208,19 @@ void Transformation::GetTransformMat(cv::Mat& frame)
         //a patir de la position des brique on rempli le tableau src
         tab_point_src[i] = t_pointVec[i];
     }
+    double scaleFactor = 1;
 
-    tab_point_dst[0].x = mid_height - 30;
-    tab_point_dst[0].y = mid_width + 20;
+    tab_point_dst[0].x = mid_height - 30 * scaleFactor;
+    tab_point_dst[0].y = mid_width + 20 * scaleFactor;
 
-    tab_point_dst[1].x = mid_height + 30;
-    tab_point_dst[1].y = mid_width + 20;
+    tab_point_dst[1].x = mid_height + 30 * scaleFactor;
+    tab_point_dst[1].y = mid_width + 20 * scaleFactor;
 
-    tab_point_dst[2].x = mid_height + 30;
-    tab_point_dst[2].y = mid_width - 20;
+    tab_point_dst[2].x = mid_height + 30 * scaleFactor;
+    tab_point_dst[2].y = mid_width - 20 * scaleFactor;
 
-    tab_point_dst[3].x = mid_height - 30;
-    tab_point_dst[3].y = mid_width - 20;
+    tab_point_dst[3].x = mid_height - 30 * scaleFactor;
+    tab_point_dst[3].y = mid_width - 20 * scaleFactor;
 
 
     //by comparing the src and dst of the position of the corner of sheet of paper we obtain a 3x3 transformation matrix
@@ -411,6 +412,7 @@ void Transformation::ComputeTransformViewParam()
         cv::Mat im(view);
         cv::Mat finalView = im(t_cadre);
 
+
         //Second canny edge process
        //=============================
 
@@ -455,7 +457,10 @@ void Transformation::ComputeTransformViewParam()
         for (int j = 0; j < Hull_mask.size(); j++)
         {
             drawContours(Hull_mask[j], SecondHull, j, cv::Scalar(255), -1, cv::LINE_8);
+            imshow("test "+j, Hull_mask[j]);
         }
+
+
 
         t_mask = cv::Mat::zeros(finalView.size(), CV_8U);
         for (int i = 0; i < Hull_mask.size(); i++)

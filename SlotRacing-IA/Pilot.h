@@ -88,7 +88,7 @@ public:
 	void SavePath();
 
 
-	void train();
+	void train(cv::Mat& stream);
 
 
 	void drive();
