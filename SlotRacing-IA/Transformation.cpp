@@ -457,7 +457,7 @@ void Transformation::ComputeTransformViewParam()
         for (int j = 0; j < Hull_mask.size(); j++)
         {
             drawContours(Hull_mask[j], SecondHull, j, cv::Scalar(255), -1, cv::LINE_8);
-            imshow("test "+j, Hull_mask[j]);
+            //imshow("test "+j, Hull_mask[j]);
         }
 
 

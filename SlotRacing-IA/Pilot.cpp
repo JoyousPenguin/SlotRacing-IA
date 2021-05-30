@@ -404,6 +404,10 @@ void Pilot::SavePath()
         {
             break;
         }
+        else if (cv::waitKey(20) == 27)//press ESC
+        {
+            cv::waitKey(0);
+        }
     }
 
     cv::Mat path(stream.size(), CV_8UC1, cv::Scalar(0, 0, 0));
@@ -421,6 +425,7 @@ void Pilot::SavePath()
     stream.release();
 
     cv::destroyWindow(wind);
+    cv::destroyWindow("Track");
 
 
 
@@ -537,6 +542,26 @@ void Pilot::train(cv::Mat& stream)
     /*std::cout << "30 cm --> " << distx << " pxl" << std::endl;
     std::cout << "20 cm --> " << disty << " pxl" << std::endl;
     std::cout << factorPxl << " cm --> 1 pxl" << std::endl;*/
+
+    for (int i = 0; i < filtered_ordered_point_path.size(); i++)
+    {
+
+        //compute TrackLenght
+
+        int prev = i - 1;
+        if (i == 0)
+            prev = filtered_ordered_point_path.size() - 1;
+
+        double dist = sqrt(pow(filtered_ordered_point_path[i].x - filtered_ordered_point_path[prev].x, 2) + pow(filtered_ordered_point_path[i].y - filtered_ordered_point_path[prev].y, 2));
+
+        TrackLenght += (dist*factorPxl);
+
+    }
+
+
+    std::cout << "Total lenght of the track: " << TrackLenght << std::endl;
+
+
 };
 
 
@@ -576,25 +601,39 @@ void Pilot::drive()
 
 
     //compute first PosT index
-    cv::Point firstP;
-    firstP.x = Startgrid.x + Startgrid.width / 2;
-    firstP.y = Startgrid.y + Startgrid.height / 2;
+    cv::Point StartPoint;
+    StartPoint.x = Startgrid.x + Startgrid.width / 2;
+    StartPoint.y = Startgrid.y + Startgrid.height / 2;
 
 
     double shortestDist = 999999;
     int shortestDistIdx = -1;
+
+    double current_shift_pxl;
 
     //check for the closest point of the start point
     for (int i = 0; i < PointsSection.size(); i++)
     {
 
         //std::cout << "val = " << val << std::endl;
-        double dist = sqrt(pow(firstP.x - PointsSection[i].first.x, 2) + pow(firstP.y - PointsSection[i].first.y, 2));
+        double dist = sqrt(pow(StartPoint.x - PointsSection[i].first.x, 2) + pow(StartPoint.y - PointsSection[i].first.y, 2));
 
         if (dist < shortestDist)
         {
             shortestDistIdx = i;
             shortestDist = dist;
+
+            double factor = 1;
+
+            if (PointsSection[i].second == TURN)
+                factor = 0.8;
+            else if (PointsSection[i].second == TIGHTURN)
+                factor = 0.7;
+
+            current_shift_pxl = factor * shift_pxl;
+
+
+
         }
     }
 
@@ -610,7 +649,7 @@ void Pilot::drive()
 
         double dist = sqrt(pow(PointsSection[shortestDistIdx].first.x - PointsSection[val].first.x, 2) + pow(PointsSection[shortestDistIdx].first.y - PointsSection[val].first.y, 2));
 
-        if (dist >= shift_pxl)
+        if (dist >= current_shift_pxl)
         {
             if (val > shortestDistIdx)
                 shift = val - shortestDistIdx;
@@ -623,7 +662,7 @@ void Pilot::drive()
 
     }
 
-    cv::Point Prevp = firstP;
+    cv::Point Prevp = StartPoint;
 
     //start time of computing to schow number of fps
     std::string fps;
@@ -636,20 +675,27 @@ void Pilot::drive()
     int laps = 0;
 
     //use to clock the laptime
-    double lapTime = (double)cv::getTickCount();
+    double lapTime = 0;//(double)cv::getTickCount();
     double endLap=0;
     double bestLapTime = 999999;
     double averageLapTime = 0;
 
 
     double averageProcessTime=0;
+    double nFrame = 0;
 
+    //use to compute speed of the car (average by lap)
+    double speed = 0;
+    double averageSpeed = 0;
+    double maxSpeed = 0;
 
+    //std::cout << "infinite loop" << std::endl;
    
-    while (state)
+    while (state && laps < 30)
     {
 
         double startTimeProcess = (double)cv::getTickCount();
+        nFrame++;
 
         state = p_cap.read(image);
         Detection::GetView(image, stream, p_M, p_cadre, p_mask);
@@ -665,6 +711,7 @@ void Pilot::drive()
         car1 = Detection::BackgroundSubstraction(trackCar1, LearningRate);
         cv::Point p = cv::Point(-1,-1);
 
+        //draw rectangle around the car on the video stream
         for (int i = 0; i < car1.size(); i++)
         {
             cv::Rect2d r = boundingRect(car1[i]);
@@ -672,6 +719,7 @@ void Pilot::drive()
             p = cv::Point(r.x + r.width / 2, r.y + r.height / 2);
             cv::circle(stream, p, 2, cv::Scalar(0, 0, 255));
         }
+        //std::cout << "Point detected" << std::endl;
 
         //processing car1 to detect position of car
         bool straight = false;
@@ -693,7 +741,7 @@ void Pilot::drive()
             double shortestDist = 999999;
             int shortestDistIdx = -1;
 
-            //check for the closest point
+            
             for (int i = PosT; i <= PosT + shift; i++)
             {
                 int val;
@@ -703,9 +751,11 @@ void Pilot::drive()
                 else
                     val = i;
 
+                //draw the closest point on the point mat
                 cv::circle(point, PointsSection[val].first, 2, cv::Scalar(125), 2);
                 cv::circle(point, Prevp, 2, cv::Scalar(255), 2);
             }
+            //std::cout << "Point computed" << std::endl;
 
             //anticipate track
             for (int i = PosT; ; i++)
@@ -716,20 +766,32 @@ void Pilot::drive()
                     val = i - PointsSection.size();
                 else
                     val = i;
-
-                //std::cout << "val = " << val << std::endl;
+                //val = index of previous point
+                 
                 double dist = sqrt(pow(p.x - PointsSection[val].first.x,2)+pow(p.y - PointsSection[val].first.y, 2));
 
+
+                //check for the closest point in the track of the current position of the car
                 if (dist < shortestDist)
                 {
                     shortestDistIdx = val;
                     shortestDist = dist;
+
+                    double factor = 1;
+
+                    if (PointsSection[val].second == TURN)
+                        factor = 0.8;
+                    else if (PointsSection[val].second == TIGHTURN)
+                        factor = 0.7;
+
+                    current_shift_pxl = factor * shift_pxl;
                 }
+                //once the closest point is find dist will get bigger and bigger
                 else if (shortestDistIdx != -1)
                 {
                     dist = sqrt(pow(PointsSection[shortestDistIdx].first.x - PointsSection[val].first.x, 2) + pow(PointsSection[shortestDistIdx].first.y - PointsSection[val].first.y, 2));
-
-                    if (dist >= shift_pxl)
+                    //so check for the point at the correct distance of the current point (to anticipate)
+                    if (dist >= current_shift_pxl)
                     {
                         if (val > shortestDistIdx)
                             shift = val - shortestDistIdx;
@@ -742,24 +804,22 @@ void Pilot::drive()
                 
             }
 
+            //std::cout << "Anticipation done" << std::endl;
 
             if (shortestDistIdx != -1)
-            {
                 PosT = shortestDistIdx;
-            }
             else
-            {
                 std::cout << "Car point nor found" << std::endl;
-            }
 
 
             int nextPos;
-
+            
             if (PosT + shift >= PointsSection.size())
                 nextPos = PosT + shift - PointsSection.size();
             else
                 nextPos = PosT + shift;
 
+            //nextPos = PosT;
 
             if (PointsSection[nextPos].second == STRAIGHT)
                 straight = true;
@@ -791,11 +851,10 @@ void Pilot::drive()
                 prvdata = data;
             }
 
-
+            //std::cout << "Data sended" << std::endl;
 
 
             //***************************compute laps********************************************
-
             
 
             if (inStart && !lap)
@@ -803,21 +862,29 @@ void Pilot::drive()
                 lap = true;
                 laps++;
 
-                endLap = ((cv::getTickCount() - lapTime) / cv::getTickFrequency())*1000;
-                lapTime = cv::getTickCount();  
+                if (lapTime != 0)
+                {
+                    endLap = ((cv::getTickCount() - lapTime) / cv::getTickFrequency()) * 1000;
+                    averageLapTime += endLap;
+
+                    if (endLap < bestLapTime)
+                        bestLapTime = endLap;
+
+                    speed = TrackLenght / (endLap / 1000); // cm/s
+
+                    if (speed > maxSpeed)
+                        maxSpeed = speed;
+
+                    averageSpeed += speed;
+                }
+                lapTime = cv::getTickCount();
+                
 
 
-                if (averageLapTime != 0)
-                    averageLapTime = averageLapTime * 0.5 + endLap * 0.5;
-                else
-                    averageLapTime = endLap;
-
-                if (endLap < bestLapTime)
-                    bestLapTime = endLap;
             }
 
-            if (p.x > Startgrid.x && p.x < Startgrid.x + Startgrid.width &&
-                p.y> Startgrid.y && p.y < Startgrid.y + Startgrid.height)
+            if (p.x > 0.75*Startgrid.x && p.x < 1.25*(Startgrid.x + Startgrid.width) &&
+                p.y> 0.75*Startgrid.y && p.y < 1.25*(Startgrid.y + Startgrid.height))
             {
                 inStart = true;
             }
@@ -849,10 +916,8 @@ void Pilot::drive()
 
 
         //********************************************compute average process time********************************************
-        if (averageProcessTime != 0)
-            averageProcessTime = averageProcessTime * 0.5 + Processtime * 1000 * 0.5;
-        else
-            averageProcessTime = Processtime;
+
+        averageProcessTime += Processtime;
 
         //show number of laps
         std::string lap_txt = std::to_string(laps) + " laps";
@@ -863,10 +928,12 @@ void Pilot::drive()
         std::string lap_time_txt = "lap in " + std::to_string(round(endLap)) + " ms";
         cv::putText(stat, lap_time_txt, cv::Point(20, 80), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
 
-        
 
+        //********************************************show speed of the previous lap********************************************
+        std::string speed_txt = "Speed of " + std::to_string(speed) + " cm/s";
+        cv::putText(stat, speed_txt, cv::Point(20, 100), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
 
-
+        //std::cout << "stats computed" << std::endl;
 
         cv::imshow(wind_Vid, stream);
         //cv::imshow("car1 IA", trackCar1);
@@ -894,11 +961,11 @@ void Pilot::drive()
     std::cout << "==========================================" << std::endl;
 
     //average porcess time
-    std::cout << "Average process time = " << averageProcessTime << " ms" << std::endl;
+    std::cout << "Average process time = " << averageProcessTime/nFrame << " ms" << std::endl;
     std::cout << "-" << std::endl;
 
     //average lap time
-    std::cout << "Average lap time = " << averageLapTime << " ms" << std::endl;
+    std::cout << "Average lap time = " << averageLapTime/laps << " ms" << std::endl;
     std::cout << "-" << std::endl;
 
     //number of laps
@@ -907,6 +974,16 @@ void Pilot::drive()
 
     //best lap time
     std::cout << "BEST lap time = " << bestLapTime << " ms" << std::endl;
+    std::cout << "-" << std::endl;
+
+    //average speed
+    std::cout << "Average speed = " << averageSpeed/laps << " cm/s" << std::endl;
+    std::cout << "-" << std::endl;
+
+    //max speed
+    std::cout << "Maximum speed = " << maxSpeed << " cm/s" << std::endl;
+    std::cout << "-" << std::endl;
+
     std::cout << "==========================================" << std::endl;
 
     trackMask.release();

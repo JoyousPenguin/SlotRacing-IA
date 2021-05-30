@@ -29,18 +29,23 @@ std::vector<std::vector<cv::Point>> Detection::BackgroundSubstraction(cv::Mat& s
     cv::Mat fgmask;
     //fgmask.size() = image.size();
     d_BackSub->apply(stream, fgmask, learningRate);
+    //cv::imshow("0 - Output BackgroundSubstraction", fgmask);
 
     cv::Mat fgmask_tresh;
     //fgmask_tresh.size() = image.size();
     threshold(fgmask, fgmask_tresh, 250, 255, cv::THRESH_BINARY);
+    //cv::imshow("A - Output Treshold", fgmask_tresh);
 
     cv::Mat dilated;
     //dilated.size() = image.size();
-    dilate(fgmask_tresh, dilated, cv::Mat(), cv::Point(-1, -1), 5, cv::BORDER_CONSTANT);
+    dilate(fgmask_tresh, dilated, cv::Mat(), cv::Point(-1, -1), 2, cv::BORDER_CONSTANT);
+    //cv::imshow("B - Output Dilated", dilated);
 
     cv::Mat eroded;
     //eroded.size() = image.size();
-    erode(dilated, eroded, cv::Mat(), cv::Point(-1, -1), 6, cv::BORDER_CONSTANT);
+    erode(dilated, eroded, cv::Mat(), cv::Point(-1, -1), 3, cv::BORDER_CONSTANT);
+    //cv::imshow("B - Output Eroded", eroded);
+
 
     std::vector<std::vector<cv::Point>> Edges;
     cv::findContours(eroded, Edges, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
@@ -49,14 +54,23 @@ std::vector<std::vector<cv::Point>> Detection::BackgroundSubstraction(cv::Mat& s
     int biggestArea = 0;
     int biggestAreaIdx = -1;
 
+    //cv::Mat contoursMat = cv::Mat::zeros(eroded.size(), CV_8U);
+    //cv::Mat biggestcontoursMat = cv::Mat::zeros(eroded.size(), CV_8U);
+
     for (int i = 0; i < Edges.size(); i++)
     {
         if (cv::contourArea(Edges[i]) > biggestArea)
         {
             biggestAreaIdx = i;
             biggestArea = cv::contourArea(Edges[i]);
+            //cv::drawContours(biggestcontoursMat, Edges, i, cv::Scalar(255), 1, cv::LINE_8);
         }
+        //cv::drawContours(contoursMat, Edges, i, cv::Scalar(255), 1, cv::LINE_8);
     }
+
+    //cv::imshow("C - Output contour", contoursMat);
+
+    //cv::imshow("D - Output biggest contour", biggestcontoursMat);
 
     std::vector<std::vector<cv::Point>> FinalEdges;
 

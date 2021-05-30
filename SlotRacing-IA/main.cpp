@@ -23,7 +23,7 @@ cv::Mat mask;
 
 int main()
 {
-	std::cout << "Program Start" << std::endl;
+    std::cout << "Program Start" << std::endl;
 
     //****************************Capturing Stream*************************************
     cv::VideoCapture cap(1);
@@ -35,6 +35,7 @@ int main()
         cv::waitKey(0);
         return -1;
     }
+
 
     //wait some seconds to load correctly the image
     cv::Mat image;
@@ -56,7 +57,7 @@ int main()
 
     while (state)
     {
-        state=cap.read(image);
+        state = cap.read(image);
         cv::imshow(window_start, image);
         if (cv::waitKey(50) == ' ')
             break;
@@ -64,6 +65,8 @@ int main()
 
     image.release();
     cv::destroyWindow(window_start);
+
+
 
     //****************************Starting process to isolate track*************************************
 
@@ -74,12 +77,12 @@ int main()
     //****************************Showing Result of transformation*************************************
 
     std::cout << "Press SPACE to continue" << std::endl;
-        
+
     std::string wind_stream = "Video";
     cv::namedWindow(wind_stream, cv::WINDOW_AUTOSIZE);
 
     cv::Mat stream;
-    while(Transfo.GetView(stream))
+    while (Transfo.GetView(stream))
     {
         cv::imshow(wind_stream, stream);
 
@@ -90,21 +93,21 @@ int main()
     stream.release();
 
     //****************************Select ROI for sections*************************************    
-    
+
     Pilot Hamilton(cap, M, cadre, mask);
 
     Transfo.GetView(stream);
     Hamilton.SectionsSelecter(stream);
 
     //****************************Detection of the path by vector of points*************************************
-        
+
     Hamilton.SavePath();
     stream.release();
     //****************************Get car separatly******************************************
 
     Hamilton.train(stream);
     Hamilton.drive();
-   
+
     //****************************Quit*************************************
 
     std::cout << "Press any key to exit program" << std::endl;
