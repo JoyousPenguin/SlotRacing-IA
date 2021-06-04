@@ -137,7 +137,12 @@ void Pilot::SectionsSelecter(cv::Mat& image)
     std::string wind_roi = "Select sections";
     cv::namedWindow(wind_roi, cv::WINDOW_AUTOSIZE);
 
-    Startgrid= cv::selectROI(wind_roi, frame, false);
+    //Startgrid= cv::selectROI(wind_roi, frame, false);
+
+    Startgrid.x = 139;
+    Startgrid.y = 7;
+    Startgrid.width = 63;
+    Startgrid.height = 72;
     std::cout << "Startgrid position to (" << Startgrid.x << ";" << Startgrid.y << ") with dim " << Startgrid.width << " x " << Startgrid.height << std::endl;
     cv::destroyWindow(wind_roi);
     frame.release();
@@ -565,8 +570,20 @@ void Pilot::train(cv::Mat& stream)
 };
 
 
-void Pilot::drive()
+void Pilot::drive(int mode)
 {
+
+    /*
+    * mode 0 == sans anticipation
+    * mode 1 = anticipation constante
+    * mode 2 = anticipation variable    
+    */
+
+    if (mode == 1)
+        Shift_cm = 14.3;
+    else if (mode == 2)
+        Shift_cm = 18.3;
+
     cv::Mat image, stream;
     
 
@@ -625,10 +642,13 @@ void Pilot::drive()
 
             double factor = 1;
 
-            if (PointsSection[i].second == TURN)
-                factor = 0.8;
-            else if (PointsSection[i].second == TIGHTURN)
-                factor = 0.7;
+            if (mode == 2)
+            {
+                if (PointsSection[i].second == TURN)
+                    factor = 0.8;
+                else if (PointsSection[i].second == TIGHTURN)
+                    factor = 0.7;
+            }
 
             current_shift_pxl = factor * shift_pxl;
 
@@ -779,10 +799,13 @@ void Pilot::drive()
 
                     double factor = 1;
 
-                    if (PointsSection[val].second == TURN)
-                        factor = 0.8;
-                    else if (PointsSection[val].second == TIGHTURN)
-                        factor = 0.7;
+                    if (mode == 2)
+                    {
+                        if (PointsSection[val].second == TURN)
+                            factor = 0.8;
+                        else if (PointsSection[val].second == TIGHTURN)
+                            factor = 0.7;
+                    }
 
                     current_shift_pxl = factor * shift_pxl;
                 }
@@ -819,7 +842,10 @@ void Pilot::drive()
             else
                 nextPos = PosT + shift;
 
-            //nextPos = PosT;
+
+            if(mode == 0)
+                nextPos = PosT;
+
 
             if (PointsSection[nextPos].second == STRAIGHT)
                 straight = true;
